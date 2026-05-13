@@ -48,6 +48,10 @@ describe('Google OAuth', () => {
             expect(user).toBeTruthy();
             expect(user.email).toBe('grace@example.com');
             expect(user.provider).toBe('google');
+            // The Passport callback must NEVER receive passwordHash.
+            // Even if the DB column is null for OAuth users, leaking the
+            // key would let a future code change silently expose hashes.
+            expect(user).not.toHaveProperty('passwordHash');
             resolve();
           } catch (e) {
             reject(e as Error);
@@ -63,13 +67,15 @@ describe('Google OAuth', () => {
     });
 
     it('returns the existing User when one already exists for that email', async () => {
-      // Pre-seed a Google user.
+      // Pre-seed a *local* user with a passwordHash to make the leak
+      // scenario concrete: if select is missing, that hash flows to Passport.
       const existing = await prisma.user.create({
         data: {
           email: 'returning@example.com',
           name: 'Returning Customer',
-          provider: 'google',
+          provider: 'local',
           avatarUrl: 'https://example.com/old.png',
+          passwordHash: '$2b$12$abcdefghijklmnopqrstuvCkPmU2kfMTBSyq6ImpiV7B/4Z/qSyByO',
         },
       });
 
@@ -80,7 +86,7 @@ describe('Google OAuth', () => {
         photos: [{ value: 'https://example.com/new.png' }],
       };
 
-      const user = await new Promise<{ id: string; email: string; provider: string }>((resolve, reject) => {
+      const user = await new Promise<{ id: string; email: string; provider: string; passwordHash?: string }>((resolve, reject) => {
         googleVerifyCallback('access', 'refresh', profile, (err, u) => {
           if (err) return reject(err);
           resolve(u);
@@ -89,6 +95,8 @@ describe('Google OAuth', () => {
 
       expect(user.id).toBe(existing.id);
       expect(user.email).toBe('returning@example.com');
+      // The leak this task fixes: passwordHash MUST be absent.
+      expect(user).not.toHaveProperty('passwordHash');
     });
 
     it('rejects a profile with no email', async () => {

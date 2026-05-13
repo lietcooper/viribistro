@@ -193,6 +193,17 @@ authRouter.post('/logout', (_req, res) => {
 //   keeping the access token strictly in JSON+memory is safer. The brief
 //   "no token on first paint" UX issue is documented in docs/plans/frontend.md.
 
+// The shape Passport sees — never includes passwordHash. Keeping this in
+// one place stops a future "just add the field" tweak from leaking secrets.
+const PUBLIC_USER_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  avatarUrl: true,
+  provider: true,
+  createdAt: true,
+} as const;
+
 export async function googleVerifyCallback(
   _accessToken: string,
   _refreshToken: string,
@@ -208,8 +219,13 @@ export async function googleVerifyCallback(
     const name = profile.displayName?.trim() || email.split('@')[0]!;
 
     // Upsert by email — if a local-provider account already exists with this
-    // email we leave it alone (do not silently convert it to google).
-    const existing = await prisma.user.findUnique({ where: { email } });
+    // email we leave it alone (do not silently convert it to google). Select
+    // explicitly so passwordHash never reaches the Passport pipeline (and
+    // therefore never reaches downstream req.user / logs / serializers).
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: PUBLIC_USER_SELECT,
+    });
     if (existing) {
       return done(null, existing);
     }
@@ -220,6 +236,7 @@ export async function googleVerifyCallback(
         avatarUrl,
         provider: 'google',
       },
+      select: PUBLIC_USER_SELECT,
     });
     return done(null, created);
   } catch (err) {

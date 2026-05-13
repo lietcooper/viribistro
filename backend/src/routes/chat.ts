@@ -3,9 +3,10 @@
 //   GET  /api/chat/history/:id  — replay persisted history (frontend boot)
 //
 // Auth is NOT required: anonymous visitors can chat and order, then attach
-// the conversation to a user on login (handled in appendTurn via the
-// optional userId — wired into POST /api/chat below as a TODO when the
-// frontend starts sending auth headers).
+// the conversation to their user account once they log in. If the frontend
+// happens to send an Authorization header, we opportunistically verify it
+// and link the conversation to that user — but a missing/invalid token is
+// not an error.
 import { Router } from 'express';
 import { logger } from '../lib/logger.js';
 import { env } from '../lib/env.js';
@@ -19,6 +20,27 @@ import {
   loadHistory,
 } from '../services/agent/persistence.js';
 import type { MenuSnapshotItem } from '../services/agent/systemPrompt.js';
+import { verifyAccessToken } from '../services/auth.js';
+
+/**
+ * If the request carries a valid Bearer access token, return the user id.
+ * Otherwise return null. Anonymous chat is allowed, so an invalid header
+ * is never an error — but we DO log at debug so a permanent flood is
+ * still visible to operators (CLAUDE.md: no silent failures).
+ */
+function optionalUserId(req: { headers: { authorization?: string } }): string | null {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  const token = header.slice('Bearer '.length).trim();
+  if (!token) return null;
+  try {
+    const payload = verifyAccessToken(token);
+    return typeof payload.sub === 'string' ? payload.sub : null;
+  } catch (err) {
+    logger.debug({ err }, 'Chat request carried an invalid Authorization header — proceeding anonymously');
+    return null;
+  }
+}
 
 async function loadMenuSnapshot(): Promise<MenuSnapshotItem[]> {
   const items = await prisma.menuItem.findMany({
@@ -65,8 +87,12 @@ chatRouter.post(
     });
 
     // Persist the whole turn (user message + every assistant/tool turn).
+    // If a valid access token was supplied, link the conversation to that
+    // user — appendTurn upserts on sessionId so a session that started
+    // anonymous gets attached on the first authenticated turn.
+    const userId = optionalUserId(req);
     try {
-      await appendTurn(sessionId, null, result.newTurnMessages);
+      await appendTurn(sessionId, userId, result.newTurnMessages);
     } catch (err) {
       // Persistence failure must not destroy the user's reply — log and
       // continue. The frontend already has the new state in `result`.

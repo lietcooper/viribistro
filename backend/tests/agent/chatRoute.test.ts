@@ -15,6 +15,7 @@ import {
 } from './fakeAnthropic.js';
 import { setAnthropicClient } from '../../src/services/agent/anthropic.js';
 import { appendTurn } from '../../src/services/agent/persistence.js';
+import { signAccessToken } from '../../src/services/auth.js';
 
 describe('POST /api/chat', () => {
   let burgerId: string;
@@ -229,6 +230,57 @@ describe('POST /api/chat', () => {
     // First entry was the prior user message.
     expect(firstCall.messages[0]?.role).toBe('user');
     expect(firstCall.messages[0]?.content).toBe('add a salmon');
+  });
+
+  it('opportunistically links the conversation to the authenticated user when a token is sent', async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `chatlink-${Date.now()}@example.com`,
+        name: 'Linkable',
+        provider: 'local',
+      },
+    });
+    const token = signAccessToken({ sub: user.id, email: user.email });
+
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('Hi.')],
+    });
+
+    const app = await buildTestApp();
+    const res = await request(app)
+      .post('/api/chat')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ sessionId: 'chat-sess-1', message: 'hi' });
+
+    expect(res.status).toBe(200);
+    const conv = await prisma.conversation.findUnique({
+      where: { sessionId: 'chat-sess-1' },
+    });
+    expect(conv?.userId).toBe(user.id);
+
+    // Clean up so other tests in this block don't see this user.
+    await prisma.user.delete({ where: { id: user.id } });
+  });
+
+  it('proceeds anonymously when the Authorization header is invalid', async () => {
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('Hi.')],
+    });
+
+    const app = await buildTestApp();
+    const res = await request(app)
+      .post('/api/chat')
+      .set('Authorization', 'Bearer not-a-real-jwt')
+      .send({ sessionId: 'chat-sess-1', message: 'hi' });
+
+    expect(res.status).toBe(200);
+    const conv = await prisma.conversation.findUnique({
+      where: { sessionId: 'chat-sess-1' },
+    });
+    // Conversation was created but not linked to any user.
+    expect(conv?.userId).toBeNull();
   });
 
   it('returns 500 with INTERNAL_ERROR when the LLM call throws', async () => {

@@ -1,0 +1,116 @@
+// Prisma schema for The Intelligent Bistro.
+// See docs/plans/database.md for the design rationale.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Provider {
+  local
+  google
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+}
+
+enum MessageRole {
+  user
+  assistant
+  tool
+}
+
+enum Category {
+  starters
+  mains
+  desserts
+  drinks
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  avatarUrl     String?
+  passwordHash  String?
+  provider      Provider       @default(local)
+  createdAt     DateTime       @default(now())
+
+  orders        Order[]
+  conversations Conversation[]
+}
+
+model MenuItem {
+  id          String      @id @default(cuid())
+  name        String
+  description String
+  price       Decimal     @db.Decimal(10, 2)
+  category    Category
+  tags        String[]
+  imageUrl    String
+  available   Boolean     @default(true)
+
+  orderItems  OrderItem[]
+
+  @@index([category])
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  userId     String
+  status     OrderStatus @default(pending)
+  totalPrice Decimal     @db.Decimal(10, 2)
+  createdAt  DateTime    @default(now())
+
+  user       User        @relation(fields: [userId], references: [id])
+  items      OrderItem[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  menuItemId String
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([orderId])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String?
+  sessionId String    @unique
+  createdAt DateTime  @default(now())
+
+  user      User?     @relation(fields: [userId], references: [id])
+  messages  Message[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  // JSON so we can persist Anthropic tool_use / tool_result content blocks
+  // alongside plain text user messages — see docs/plans/ai-agent.md.
+  content        Json
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}

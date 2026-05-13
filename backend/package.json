@@ -1,0 +1,38 @@
+{
+  "name": "bistro-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Intelligent Bistro — Node.js + Express API",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset --force",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "lint:schema": "prisma validate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "dotenv": "16.4.5",
+    "prisma": "5.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.1",
+    "tsx": "4.21.0",
+    "typescript": "5.6.3",
+    "vitest": "2.1.9"
+  }
+}

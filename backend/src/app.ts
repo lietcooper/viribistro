@@ -18,6 +18,7 @@ import { authRouter } from './routes/auth.js';
 import { menuRouter } from './routes/menu.js';
 import { cartRouter } from './routes/cart.js';
 import { ordersRouter } from './routes/orders.js';
+import { chatRouter } from './routes/chat.js';
 
 export function createApp(): Express {
   const app = express();
@@ -47,6 +48,7 @@ export function createApp(): Express {
   app.use('/api/menu', menuRouter);
   app.use('/api/cart', cartRouter);
   app.use('/api/orders', ordersRouter);
+  app.use('/api/chat', chatRouter);
 
   // Must be the LAST middleware mounted.
   app.use(errorHandler);

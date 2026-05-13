@@ -29,11 +29,14 @@ export function CartBadge() {
     );
   }, [itemCount, scale]);
 
+  // Call every hook before any early return — moving useAnimatedStyle
+  // below the `itemCount === 0` branch is a Rules of Hooks violation
+  // that crashes the render tree the first time the cart goes 0→1.
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
   if (itemCount === 0) {
     return <View testID="cart-badge-hidden" />;
   }
-
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
     <Animated.View

@@ -11,6 +11,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  Alert,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -32,7 +34,6 @@ import { getSessionId } from '@/lib/session';
 import { formatMoney } from '@/lib/format';
 import { useCartStore, useCartTotal } from '@/stores/useCartStore';
 import { useCartUiStore } from '@/stores/useCartUiStore';
-import { useToastStore } from '@/stores/useToastStore';
 import { colors } from '@/theme/colors';
 import { springs } from '@/theme/motion';
 import { shadows } from '@/theme/shadows';
@@ -92,6 +93,24 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   }));
   const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayOpacity.value }));
 
+  const handleClearCart = () => {
+    if (items.length === 0) return;
+    const message = 'Clear all items from your cart?';
+    const proceed = () => {
+      clearCart();
+    };
+    if (Platform.OS === 'web') {
+      const g = globalThis as { confirm?: (m: string) => boolean };
+      const ok = typeof g.confirm === 'function' ? g.confirm(message) : true;
+      if (ok) proceed();
+      return;
+    }
+    Alert.alert('Clear cart', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: proceed },
+    ]);
+  };
+
   const handleCheckout = async () => {
     if (checkoutLoading) return;
     setCheckoutError(null);
@@ -102,13 +121,19 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
       closeDrawer();
       onOrderPlaced?.();
     } catch (err) {
+      // Show an inline error inside the drawer. We deliberately do NOT
+      // also fire a toast here: the axios response interceptor already
+      // surfaces a toast for non-401 failures, so a second show() would
+      // mid-air-collide with the first one's exit animation. 401 is the
+      // one case the interceptor stays quiet on (since auth errors are
+      // self-handled), and the inline message in the drawer is a more
+      // useful signal anyway — the user can immediately act on it.
       const status = (err as { response?: { status?: number } })?.response?.status;
       const message =
         status === 401
           ? 'Please sign in again to place this order.'
           : "We couldn't place your order — please try again.";
       setCheckoutError(message);
-      useToastStore.getState().show(message, 'error');
     } finally {
       setCheckoutLoading(false);
     }
@@ -141,25 +166,38 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
         />
       </Animated.View>
 
-      <Animated.View
-        pointerEvents={open ? 'auto' : 'none'}
-        testID="cart-drawer"
-        style={[
-          sheetStyle,
-          shadows.bottomSheet,
-          {
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: sheetHeight,
-            backgroundColor: colors.bg.elevated,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            zIndex: 50,
-          },
-        ]}
+      {/* Centering wrapper: caps the sheet at the same 480px the rest of
+          the app uses (see ScreenContainer) so the drawer reads as a
+          "phone" overlay on desktop browsers rather than slabbing across
+          the entire viewport. pointerEvents passes through to the sheet
+          so the overlay backdrop still closes the drawer when tapped. */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          alignItems: 'center',
+          zIndex: 50,
+        }}
       >
+        <Animated.View
+          pointerEvents={open ? 'auto' : 'none'}
+          testID="cart-drawer"
+          style={[
+            sheetStyle,
+            shadows.bottomSheet,
+            {
+              width: '100%',
+              maxWidth: 480,
+              height: sheetHeight,
+              backgroundColor: colors.bg.elevated,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+            },
+          ]}
+        >
         <View
           style={{
             alignItems: 'center',
@@ -187,15 +225,37 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
           }}
         >
           <Text style={[type.title, { color: colors.text.primary }]}>Your Cart</Text>
-          <Text
-            style={{
-              fontFamily: 'DMSans-Medium',
-              fontSize: 14,
-              color: colors.text.secondary,
-            }}
-          >
-            {itemCount === 1 ? '1 item' : `${itemCount} items`}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text
+              style={{
+                fontFamily: 'DMSans-Medium',
+                fontSize: 14,
+                color: colors.text.secondary,
+              }}
+            >
+              {itemCount === 1 ? '1 item' : `${itemCount} items`}
+            </Text>
+            {items.length > 0 ? (
+              <Pressable
+                onPress={handleClearCart}
+                accessibilityRole="button"
+                accessibilityLabel="Clear cart"
+                testID="cart-clear"
+                hitSlop={8}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'DMSans-Medium',
+                    fontSize: 13,
+                    color: colors.error,
+                  }}
+                >
+                  Clear
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {items.length === 0 ? (
@@ -283,7 +343,8 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
             testID="cart-checkout"
           />
         </View>
-      </Animated.View>
+        </Animated.View>
+      </View>
     </>
   );
 }

@@ -1,11 +1,17 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 
 import { CartDrawer } from '@/components/CartDrawer';
 import { useCartStore } from '@/stores/useCartStore';
 import { useCartUiStore } from '@/stores/useCartUiStore';
 
-const mockClient = { post: jest.fn() };
+const mockClient = {
+  post: jest.fn(),
+  patch: jest.fn(() => new Promise(() => {})),
+  delete: jest.fn(() => new Promise(() => {})),
+  get: jest.fn(() => new Promise(() => {})),
+};
 
 jest.mock('@/lib/api', () => ({
   getApiClient: () => mockClient,
@@ -17,6 +23,9 @@ jest.mock('@/lib/session', () => ({
 
 beforeEach(() => {
   mockClient.post.mockReset();
+  mockClient.patch.mockClear();
+  mockClient.delete.mockClear();
+  mockClient.get.mockClear();
   useCartStore.setState({ items: [], total: '0' });
   useCartUiStore.setState({ open: false });
 });
@@ -64,12 +73,50 @@ describe('CartDrawer', () => {
     expect(useCartStore.getState().items).toEqual([]);
   });
 
+  it('Clear button is hidden when the cart is empty', () => {
+    render(<CartDrawer />);
+    act(() => useCartUiStore.getState().openDrawer());
+    expect(screen.queryByTestId('cart-clear')).toBeNull();
+  });
+
+  it('tapping Clear cart confirms and resets the local + server cart', async () => {
+    useCartStore.setState({
+      items: [{ menuItemId: 'a', name: 'A', quantity: 2, unitPrice: '5.00' }],
+      total: '10',
+    });
+    mockClient.post.mockResolvedValueOnce({
+      data: { cart: { items: [], total: '0.00' } },
+    });
+
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation((_t, _m, buttons) => {
+        const ok = (buttons ?? []).find((b) => b.style === 'destructive');
+        ok?.onPress?.();
+      });
+
+    render(<CartDrawer />);
+    act(() => useCartUiStore.getState().openDrawer());
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('cart-clear'));
+    });
+
+    expect(useCartStore.getState().items).toEqual([]);
+    expect(mockClient.post).toHaveBeenCalledWith('/api/cart/reset', {
+      sessionId: 'session-fixed',
+    });
+    alertSpy.mockRestore();
+  });
+
   it('checkout POSTs /api/orders, clears the cart, and fires onOrderPlaced', async () => {
     useCartStore.setState({
       items: [{ menuItemId: 'a', name: 'A', quantity: 1, unitPrice: '5.00' }],
       total: '5',
     });
-    mockClient.post.mockResolvedValueOnce({ data: { order: { id: 'o1' } } });
+    mockClient.post
+      .mockResolvedValueOnce({ data: { order: { id: 'o1' } } })
+      .mockResolvedValueOnce({ data: { cart: { items: [], total: '0.00' } } });
     const onOrderPlaced = jest.fn();
 
     render(<CartDrawer onOrderPlaced={onOrderPlaced} />);

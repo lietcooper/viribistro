@@ -49,6 +49,10 @@ export interface ChatResponse {
   reply: string;
   cartUpdate: Cart | null;
   toolsUsed: ChatToolUsed[];
+  // false when the backend successfully replied but failed to persist
+  // the turn (DB blip). The frontend surfaces a toast so the user knows
+  // the agent may not remember this turn on the next request.
+  historyPersisted: boolean;
 }
 
 export interface ChatHistoryMessage {

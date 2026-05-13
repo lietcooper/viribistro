@@ -12,8 +12,8 @@ import { create } from 'zustand';
 
 import { getApiClient } from '@/lib/api';
 import { getSessionId } from '@/lib/session';
-import { useAuthStore } from '@/stores/useAuthStore';
 import { useCartStore } from '@/stores/useCartStore';
+import { useToastStore } from '@/stores/useToastStore';
 import type { Cart, ChatResponse } from '@/types/api';
 
 export type ChatRole = 'user' | 'assistant';
@@ -70,14 +70,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      // Attach the signed-in user's id when present so the backend can
-      // link this conversation to their account. Anonymous sessions
-      // omit the field rather than send null.
-      const userId = useAuthStore.getState().user?.id;
+      // The backend links the conversation to the signed-in user by
+      // reading the Authorization: Bearer header, which the axios
+      // request interceptor in lib/api.ts attaches automatically from
+      // useAuthStore. No userId in the body — the backend's
+      // ChatBodySchema only accepts { sessionId, message }.
       const res = await getApiClient().post<ChatResponse>('/api/chat', {
         sessionId: get().sessionId,
         message: trimmed,
-        ...(userId ? { userId } : {}),
       });
 
       if (res.data.cartUpdate) {
@@ -95,6 +95,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [...s.messages, assistantMsg],
         isTyping: false,
       }));
+
+      // Backend persists each turn to Postgres so the agent has memory
+      // across requests. If that DB write failed, the user's reply was
+      // still produced but the next message won't see this turn in the
+      // history snapshot — surface a quiet warning so they know.
+      if (res.data.historyPersisted === false) {
+        useToastStore
+          .getState()
+          .show("Conversation history may be out of sync.", 'info');
+      }
     } catch (err) {
       const fallback: ChatMessage = {
         id: makeMessageId(),

@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
-import { Modal, Pressable, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, View } from 'react-native';
 
 import { CartBadge } from '@/components/CartBadge';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -17,6 +17,7 @@ import { ChatScreen } from '@/screens/ChatScreen';
 import { MenuScreen } from '@/screens/MenuScreen';
 import { OrderSuccessScreen } from '@/screens/OrderSuccessScreen';
 import { OrdersScreen } from '@/screens/OrdersScreen';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { useCartUiStore } from '@/stores/useCartUiStore';
 import { colors } from '@/theme/colors';
 
@@ -58,6 +59,55 @@ function CartTabButton() {
   );
 }
 
+function LogoutHeaderButton() {
+  const logout = useAuthStore((s) => s.logout);
+
+  const performLogout = () => {
+    // Fire and forget — the auth store clears local state even if the
+    // network call fails, and logs the error itself. Avoid awaiting so
+    // the UI feels instant.
+    void logout();
+  };
+
+  const onPress = () => {
+    // react-native's Alert isn't supported on web; fall back to a
+    // native browser confirm so the affordance still works there.
+    if (Platform.OS === 'web') {
+      const ok =
+        typeof globalThis !== 'undefined' &&
+        typeof (globalThis as { confirm?: (m: string) => boolean }).confirm === 'function'
+          ? (globalThis as { confirm: (m: string) => boolean }).confirm(
+              'Sign out of ViriBistro?',
+            )
+          : true;
+      if (ok) performLogout();
+      return;
+    }
+    Alert.alert('Sign out', 'Sign out of ViriBistro?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: performLogout },
+    ]);
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Sign out"
+      testID="logout-button"
+      hitSlop={8}
+      style={({ pressed }) => ({
+        width: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <Ionicons name="log-out-outline" size={22} color={colors.text.tertiary} />
+    </Pressable>
+  );
+}
+
 export function MainTabs({ navRef }: MainTabsProps) {
   const successOpen = useCartUiStore((s) => s.successOpen);
   const dismissSuccess = useCartUiStore((s) => s.dismissSuccess);
@@ -86,7 +136,18 @@ export function MainTabs({ navRef }: MainTabsProps) {
           },
           headerShadowVisible: false,
           headerRight: () => (
-            <View style={{ paddingRight: 16 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                paddingRight: 16,
+              }}
+            >
+              {/* Logout lives on the Orders tab — the natural "account"
+                  surface. Other tabs keep just the cart for a cleaner
+                  header. */}
+              {route.name === 'Orders' ? <LogoutHeaderButton /> : null}
               <CartTabButton />
             </View>
           ),

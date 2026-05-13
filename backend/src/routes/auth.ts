@@ -252,6 +252,14 @@ export async function googleVerifyCallback(
 // clearer than crashing at boot.
 const googleConfigured = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 if (googleConfigured) {
+  // env.GOOGLE_CALLBACK_URL is enforced by the env superRefine whenever
+  // GOOGLE_CLIENT_ID is non-empty, but TS sees the type as `string | undefined`
+  // — assert with the same precondition that gates this block.
+  if (!env.GOOGLE_CALLBACK_URL) {
+    throw new Error(
+      'GOOGLE_CALLBACK_URL is required when GOOGLE_CLIENT_ID is set (env schema should have caught this).',
+    );
+  }
   passport.use(
     new GoogleStrategy(
       {

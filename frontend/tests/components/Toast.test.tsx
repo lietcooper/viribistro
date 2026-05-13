@@ -22,16 +22,29 @@ describe('Toast', () => {
     expect(screen.getByText('hello world')).toBeTruthy();
   });
 
-  it('hide() removes the toast', () => {
-    render(<Toast />);
-    act(() => {
-      useToastStore.getState().show('boom', 'error');
-    });
-    expect(screen.getByTestId('toast')).toBeTruthy();
+  it('hide() removes the toast after the exit animation completes', () => {
+    jest.useFakeTimers();
+    try {
+      render(<Toast />);
+      act(() => {
+        useToastStore.getState().show('boom', 'error');
+      });
+      expect(screen.getByTestId('toast')).toBeTruthy();
 
-    act(() => {
-      fireEvent.press(screen.getByTestId('toast'));
-    });
-    expect(screen.queryByTestId('toast')).toBeNull();
+      act(() => {
+        fireEvent.press(screen.getByTestId('toast'));
+      });
+      // Still mounted while the slide-out / fade plays — see the
+      // `mounted` lag in Toast.tsx. Without this, exit animation would
+      // never be visible.
+      expect(screen.queryByTestId('toast')).not.toBeNull();
+
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+      expect(screen.queryByTestId('toast')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

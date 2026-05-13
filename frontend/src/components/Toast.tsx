@@ -1,7 +1,7 @@
 // Floating pill near the top of the screen. Slides + fades in when
 // `useToastStore.show()` is called, auto-hides after a short duration.
 // Tap to dismiss early.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
@@ -18,6 +18,10 @@ import { springs } from '@/theme/motion';
 import { shadows } from '@/theme/shadows';
 
 const AUTO_HIDE_MS = 3200;
+// Keep the component mounted slightly longer than the exit timing so the
+// slide-out + fade can finish before we unmount. Match the longer of the
+// two exit `withTiming` durations.
+const EXIT_DURATION_MS = 220;
 
 function styleFor(tone: ToastTone) {
   switch (tone) {
@@ -41,8 +45,14 @@ export function Toast() {
   const translateY = useSharedValue(reduced ? 0 : -40);
   const opacity = useSharedValue(0);
 
+  // `mounted` lags behind `visible` so the exit animation has time to play.
+  // Without this, returning null on `!visible` removes the Animated.View
+  // before the slide-out + fade can run.
+  const [mounted, setMounted] = useState(visible);
+
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       if (reduced) {
         translateY.value = 0;
         opacity.value = 1;
@@ -53,21 +63,23 @@ export function Toast() {
       const t = setTimeout(hide, AUTO_HIDE_MS);
       return () => clearTimeout(t);
     }
+    if (!mounted) return undefined;
     if (reduced) {
       opacity.value = 0;
     } else {
       opacity.value = withTiming(0, { duration: 180 });
-      translateY.value = withTiming(-40, { duration: 180 });
+      translateY.value = withTiming(-40, { duration: EXIT_DURATION_MS });
     }
-    return undefined;
-  }, [visible, shownAt, reduced, hide, translateY, opacity]);
+    const t = setTimeout(() => setMounted(false), EXIT_DURATION_MS);
+    return () => clearTimeout(t);
+  }, [visible, shownAt, reduced, hide, mounted, translateY, opacity]);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
   }));
 
-  if (!visible) return null;
+  if (!mounted) return null;
   const { bg, fg, icon } = styleFor(tone);
 
   return (

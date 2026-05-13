@@ -1,7 +1,7 @@
 // Full-screen detail modal. Opens when a menu card is tapped. Includes
 // a quantity stepper, the full description, and a primary "Add to cart"
 // CTA that closes the modal and merges into the cart store.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
@@ -23,7 +23,14 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
   const [quantity, setQuantity] = useState(1);
   const addItem = useCartStore((s) => s.addItem);
 
-  // Reset quantity each time the modal opens.
+  // RN's Modal keeps children mounted across open/close cycles, so a
+  // one-shot `useState(1)` would leak the previous item's quantity into
+  // the next one. Reset whenever the underlying item changes (open,
+  // close, or swap from one card to another without closing in between).
+  useEffect(() => {
+    if (item) setQuantity(1);
+  }, [item?.id]);
+
   if (!item) return null;
 
   const submit = () => {

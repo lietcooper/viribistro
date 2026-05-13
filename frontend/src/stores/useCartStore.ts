@@ -9,6 +9,7 @@
 // straight assignment. Local mutations recompute the total via the
 // integer-cents math from `computeTotal`.
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 import type { Cart, CartItem } from '@/types/api';
 
@@ -92,9 +93,17 @@ export const useCartStore = create<CartState>((set) => ({
 
 // Selector helper. Exposes the running total + item count so screens
 // can subscribe to derived data without recomputing on each render.
+//
+// Returns a single object via one selector + useShallow so each cart
+// mutation only triggers one synchronous render. The previous version
+// subscribed to `items` and `total` separately, which caused two
+// renders per change and could mis-fire CartBadge's `previous.current`
+// spring guard.
 export function useCartTotal(): { total: string; itemCount: number } {
-  const items = useCartStore((s) => s.items);
-  const total = useCartStore((s) => s.total);
-  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
-  return { total, itemCount };
+  return useCartStore(
+    useShallow((s) => ({
+      total: s.total,
+      itemCount: s.items.reduce((sum, i) => sum + i.quantity, 0),
+    })),
+  );
 }

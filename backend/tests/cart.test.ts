@@ -32,7 +32,7 @@ describe('Cart HTTP routes', () => {
     const res = await request(app).get('/api/cart?sessionId=sess-1');
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toEqual([]);
-    expect(res.body.cart.total).toBe('0');
+    expect(res.body.cart.total).toBe('0.00');
   });
 
   it('GET /api/cart without sessionId returns 400', async () => {

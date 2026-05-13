@@ -85,7 +85,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         { headers: { 'x-skip-auth-refresh': '1' } },
       );
       applyAuth(set, res.data);
-    } catch {
+    } catch (err) {
+      // Refresh failed (no cookie, expired, network) — fall back to
+      // unauthenticated. Log so we can spot misconfigured backends in dev.
+      console.warn('[auth] bootstrap failed:', err);
       set({ user: null, token: null, status: 'idle', error: null });
     }
   },

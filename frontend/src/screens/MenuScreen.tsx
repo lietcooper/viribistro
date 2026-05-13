@@ -44,8 +44,11 @@ export function MenuScreen() {
       try {
         const res = await getApiClient().get<{ items: MenuItem[] }>('/api/menu');
         if (!cancelled) setItems(res.data.items);
-      } catch {
-        if (!cancelled) setError('Could not load the menu.');
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[MenuScreen] fetch failed:', err);
+          setError('Could not load the menu.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -55,7 +55,11 @@ function performRefresh(client: AxiosInstance): Promise<string | null> {
       const { accessToken, user } = res.data;
       useAuthStore.setState({ user, token: accessToken, status: 'ready', error: null });
       return accessToken;
-    } catch {
+    } catch (err) {
+      // Refresh itself failed — clear auth state and let the original
+      // 401 propagate. Log so backend / cookie misconfigurations are
+      // observable in dev and monitoring.
+      console.warn('[api] refresh failed:', err);
       useAuthStore.setState({
         user: null,
         token: null,

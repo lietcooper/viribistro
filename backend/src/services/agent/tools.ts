@@ -74,6 +74,10 @@ export const toolSchemas: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {},
+      // Anthropic's JSON-schema validator expects `required` to be present
+      // even on zero-arg tools — omitting it can produce a stricter
+      // "schema invalid" error on some model versions.
+      required: [],
     },
   },
   {
@@ -91,6 +95,7 @@ export const toolSchemas: Anthropic.Tool[] = [
           description: 'Optional category filter.',
         },
       },
+      required: [],
     },
   },
   {

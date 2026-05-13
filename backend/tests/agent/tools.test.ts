@@ -26,6 +26,15 @@ describe('AI agent tool schemas', () => {
     }
   });
 
+  it('every tool declares a `required` array on its input_schema', () => {
+    // Anthropic's JSON-schema validator expects `required` to be present,
+    // even on zero-arg tools (e.g. get_cart with `required: []`).
+    for (const tool of toolSchemas) {
+      const schema = tool.input_schema as { required?: unknown };
+      expect(Array.isArray(schema.required)).toBe(true);
+    }
+  });
+
   it('add_to_cart requires itemId, allows optional quantity (positive integer)', () => {
     const schema = toolSchemas.find((t) => t.name === 'add_to_cart')!;
     const required = (schema.input_schema as { required?: string[] }).required ?? [];

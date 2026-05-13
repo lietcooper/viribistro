@@ -3,6 +3,7 @@
 // into each order row — the orders endpoint only returns ids + prices.
 // Tap a row to expand and see the full item breakdown.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
@@ -213,6 +214,15 @@ export function OrdersScreen() {
       setLoading(false);
     })();
   }, [load]);
+
+  // Refetch whenever the Orders tab regains focus (e.g. after the
+  // post-checkout success overlay navigates here). Without this a fresh
+  // order only appears after a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const nameById = useMemo(
     () => new Map(menu.map((m) => [m.id, m.name])),

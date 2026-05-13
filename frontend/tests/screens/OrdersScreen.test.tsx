@@ -1,6 +1,14 @@
+import type { ReactElement } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { NavigationContainer } from '@react-navigation/native';
 
 import { OrdersScreen } from '@/screens/OrdersScreen';
+
+// OrdersScreen uses useFocusEffect, which requires a NavigationContainer
+// ancestor. Wrap renders so the hook can read its navigation context.
+function renderWithNav(ui: ReactElement) {
+  return render(<NavigationContainer>{ui}</NavigationContainer>);
+}
 
 const mockClient = { get: jest.fn() };
 
@@ -73,7 +81,7 @@ beforeEach(() => {
 describe('OrdersScreen', () => {
   it('lists past orders with menu names joined in', async () => {
     primeMocks();
-    render(<OrdersScreen />);
+    renderWithNav(<OrdersScreen />);
 
     await waitFor(() =>
       expect(screen.getByTestId('orders-list')).toBeTruthy(),
@@ -87,7 +95,7 @@ describe('OrdersScreen', () => {
 
   it('expands the row to show the full breakdown when tapped', async () => {
     primeMocks();
-    render(<OrdersScreen />);
+    renderWithNav(<OrdersScreen />);
     await waitFor(() => screen.getByTestId('order-card-o_1'));
 
     fireEvent.press(screen.getByTestId('order-card-o_1'));
@@ -100,7 +108,7 @@ describe('OrdersScreen', () => {
       if (url === '/api/menu') return Promise.resolve({ data: FAKE_MENU });
       return Promise.reject(new Error('unmocked'));
     });
-    render(<OrdersScreen />);
+    renderWithNav(<OrdersScreen />);
     await waitFor(() => screen.getByTestId('orders-empty'));
   });
 
@@ -114,7 +122,7 @@ describe('OrdersScreen', () => {
       if (url === '/api/menu') return Promise.resolve({ data: FAKE_MENU });
       return Promise.reject(new Error('unmocked'));
     });
-    render(<OrdersScreen />);
+    renderWithNav(<OrdersScreen />);
     await waitFor(() => screen.getByTestId('orders-error'));
     expect(screen.getByText(/sign in/i)).toBeTruthy();
   });

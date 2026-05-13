@@ -5,12 +5,10 @@
 // the actual cart UI is a global bottom sheet mounted alongside the
 // navigator so it can open over any screen. Same for the post-checkout
 // success overlay — mounted once at the navigator level.
-import { useRef } from 'react';
+import { useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  createBottomTabNavigator,
-  type BottomTabNavigationProp,
-} from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { Modal, Pressable, View } from 'react-native';
 
 import { CartBadge } from '@/components/CartBadge';
@@ -30,7 +28,12 @@ export type MainTabsParamList = {
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 
-type Nav = BottomTabNavigationProp<MainTabsParamList>;
+interface MainTabsProps {
+  // Provided by RootNavigator so the post-checkout success modal can
+  // route the user to the Orders tab when it auto-dismisses, without
+  // each tab having to thread its own `navigation` prop through a ref.
+  navRef: NavigationContainerRefWithCurrent<MainTabsParamList>;
+}
 
 function CartTabButton() {
   const openDrawer = useCartUiStore((s) => s.openDrawer);
@@ -55,20 +58,20 @@ function CartTabButton() {
   );
 }
 
-export function MainTabs() {
+export function MainTabs({ navRef }: MainTabsProps) {
   const successOpen = useCartUiStore((s) => s.successOpen);
   const dismissSuccess = useCartUiStore((s) => s.dismissSuccess);
   const showSuccess = useCartUiStore((s) => s.showSuccess);
 
-  // When the cart drawer fires onOrderPlaced we flip on the overlay and
-  // arrange for the bottom navigator to land on the Orders tab when it
-  // auto-dismisses.
-  const navRef = useRef<Nav | null>(null);
-
-  const handleDismiss = () => {
+  // Memoized so it keeps a stable reference across MainTabs re-renders.
+  // OrderSuccessScreen depends on `onDismiss` in its auto-dismiss
+  // useEffect, and would otherwise reset its 2400ms timer every render.
+  const handleDismiss = useCallback(() => {
     dismissSuccess();
-    navRef.current?.navigate('Orders');
-  };
+    if (navRef.isReady()) {
+      navRef.navigate('Orders');
+    }
+  }, [dismissSuccess, navRef]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -108,36 +111,9 @@ export function MainTabs() {
           },
         })}
       >
-        <Tab.Screen
-          name="Menu"
-          component={MenuScreen}
-          options={{ title: 'Menu' }}
-          listeners={({ navigation }) => ({
-            focus: () => {
-              navRef.current = navigation as unknown as Nav;
-            },
-          })}
-        />
-        <Tab.Screen
-          name="Chat"
-          component={ChatScreen}
-          options={{ title: 'Bistro' }}
-          listeners={({ navigation }) => ({
-            focus: () => {
-              navRef.current = navigation as unknown as Nav;
-            },
-          })}
-        />
-        <Tab.Screen
-          name="Orders"
-          component={OrdersScreen}
-          options={{ title: 'Orders' }}
-          listeners={({ navigation }) => ({
-            focus: () => {
-              navRef.current = navigation as unknown as Nav;
-            },
-          })}
-        />
+        <Tab.Screen name="Menu" component={MenuScreen} options={{ title: 'Menu' }} />
+        <Tab.Screen name="Chat" component={ChatScreen} options={{ title: 'Bistro' }} />
+        <Tab.Screen name="Orders" component={OrdersScreen} options={{ title: 'Orders' }} />
       </Tab.Navigator>
 
       <CartDrawer onOrderPlaced={showSuccess} />
@@ -153,4 +129,3 @@ export function MainTabs() {
     </View>
   );
 }
-

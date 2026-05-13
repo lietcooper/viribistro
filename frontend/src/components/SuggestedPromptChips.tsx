@@ -14,7 +14,7 @@ import { springs } from '@/theme/motion';
 
 // Per the project brief: the four canonical suggested prompts when the
 // conversation is empty. Keep this list aligned with CLAUDE.md.
-const PROMPTS = [
+const DEFAULT_PROMPTS = [
   "What's on the menu?",
   'Recommend something spicy',
   "Add the chef's special",
@@ -23,6 +23,10 @@ const PROMPTS = [
 
 interface SuggestedPromptChipsProps {
   onSelect: (prompt: string) => void;
+  // Optional override. ChatScreen passes the agent's per-turn follow-up
+  // suggestions; the auth-empty surface omits it and falls back to the
+  // brief's canonical four.
+  prompts?: string[];
 }
 
 function Chip({ label, onPress }: { label: string; onPress: () => void }) {
@@ -66,7 +70,11 @@ function Chip({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
-export function SuggestedPromptChips({ onSelect }: SuggestedPromptChipsProps) {
+export function SuggestedPromptChips({
+  onSelect,
+  prompts,
+}: SuggestedPromptChipsProps) {
+  const list = prompts ?? DEFAULT_PROMPTS;
   return (
     <View style={{ paddingVertical: 4 }} testID="prompt-chips">
       <ScrollView
@@ -74,7 +82,7 @@ export function SuggestedPromptChips({ onSelect }: SuggestedPromptChipsProps) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}
       >
-        {PROMPTS.map((p) => (
+        {list.map((p) => (
           <Chip key={p} label={p} onPress={() => onSelect(p)} />
         ))}
       </ScrollView>

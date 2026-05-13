@@ -57,6 +57,15 @@ export function ChatScreen() {
     <ChatBubble message={item} />
   );
 
+  // Only the most recent assistant message's suggestions are live. Older
+  // ones are still in the store for history fidelity but render no chips,
+  // so the user always sees one "what next" strip — never a stale one.
+  const latestAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const followups =
+    !isTyping && latestAssistant?.suggestedReplies
+      ? latestAssistant.suggestedReplies.filter((s) => s.trim().length > 0)
+      : [];
+
   return (
     <ScreenContainer background={colors.bg.primary}>
       <View style={{ flex: 1 }}>
@@ -163,6 +172,15 @@ export function ChatScreen() {
               testID="chat-list"
             />
           )}
+
+          {followups.length > 0 ? (
+            <View style={{ paddingBottom: 8 }} testID="chat-followups">
+              <SuggestedPromptChips
+                onSelect={sendMessage}
+                prompts={followups}
+              />
+            </View>
+          ) : null}
 
           <ChatInput onSend={sendMessage} disabled={isTyping} />
         </KeyboardAvoidingView>

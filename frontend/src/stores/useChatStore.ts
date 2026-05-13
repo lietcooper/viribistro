@@ -25,6 +25,10 @@ export interface ChatMessage {
   // Populated on assistant turns where the agent updated the cart.
   // Triggers an inline cart-update card below the bubble.
   cartUpdate?: Cart | null;
+  // Follow-up prompts from the agent. Only the latest assistant turn's
+  // suggestions are actually rendered as chips (see ChatScreen) — older
+  // ones are kept here for the persisted history but go inert.
+  suggestedReplies?: string[];
   createdAt: number;
 }
 
@@ -94,6 +98,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: 'assistant',
         content: res.data.reply,
         cartUpdate: res.data.cartUpdate,
+        suggestedReplies: res.data.suggestedReplies ?? [],
         createdAt: Date.now(),
       };
       set((s) => ({

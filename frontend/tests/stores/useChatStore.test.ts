@@ -52,6 +52,38 @@ describe('useChatStore', () => {
     });
   });
 
+  it('records the agent suggestedReplies on the assistant turn', async () => {
+    mockClient.post.mockResolvedValueOnce({
+      data: {
+        reply: 'Try the burger.',
+        cartUpdate: null,
+        toolsUsed: [],
+        suggestedReplies: ['Add it to my cart', 'Show me drinks'],
+      },
+    });
+
+    await act(async () => {
+      await useChatStore.getState().sendMessage('what should I get?');
+    });
+
+    const last = useChatStore.getState().messages.at(-1);
+    expect(last?.suggestedReplies).toEqual([
+      'Add it to my cart',
+      'Show me drinks',
+    ]);
+  });
+
+  it('defaults suggestedReplies to an empty array when the server omits it', async () => {
+    mockClient.post.mockResolvedValueOnce({
+      data: { reply: 'hi', cartUpdate: null, toolsUsed: [] },
+    });
+    await act(async () => {
+      await useChatStore.getState().sendMessage('hi');
+    });
+    const last = useChatStore.getState().messages.at(-1);
+    expect(last?.suggestedReplies).toEqual([]);
+  });
+
   it('reconciles cart state from cartUpdate when present', async () => {
     mockClient.post.mockResolvedValueOnce({
       data: {

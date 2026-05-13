@@ -49,6 +49,9 @@ export interface ChatResponse {
   reply: string;
   cartUpdate: Cart | null;
   toolsUsed: ChatToolUsed[];
+  // Short follow-up prompts the agent offered as next steps. Empty when
+  // the agent omitted the tail tag — render no chips in that case.
+  suggestedReplies: string[];
   // false when the backend successfully replied but failed to persist
   // the turn (DB blip). The frontend surfaces a toast so the user knows
   // the agent may not remember this turn on the next request.
@@ -71,7 +74,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  userId?: string;
+  userId: string | null;
   status: OrderStatus;
   totalPrice: string;
   createdAt: string;

@@ -107,6 +107,74 @@ describe('ChatScreen', () => {
     expect(mockClient.post).not.toHaveBeenCalled();
   });
 
+  it('renders the agent follow-up chips under the latest assistant turn', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'u1', role: 'user', content: 'recommend?', createdAt: 1 },
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'Try the burger.',
+          createdAt: 2,
+          suggestedReplies: ['Add it to my cart', 'Show me drinks'],
+        },
+      ],
+    });
+    render(<ChatScreen />);
+    expect(screen.getByTestId('chat-followups')).toBeTruthy();
+    expect(screen.getByTestId('prompt-chip-Add it to my cart')).toBeTruthy();
+    expect(screen.getByTestId('prompt-chip-Show me drinks')).toBeTruthy();
+  });
+
+  it('hides follow-up chips while a reply is in flight', () => {
+    useChatStore.setState({
+      isTyping: true,
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'something',
+          createdAt: 1,
+          suggestedReplies: ['One', 'Two'],
+        },
+      ],
+    });
+    render(<ChatScreen />);
+    expect(screen.queryByTestId('chat-followups')).toBeNull();
+  });
+
+  it('tapping a follow-up chip sends it as a user message', async () => {
+    mockClient.post.mockResolvedValueOnce({
+      data: {
+        reply: 'sure',
+        cartUpdate: null,
+        toolsUsed: [],
+        suggestedReplies: [],
+      },
+    });
+    useChatStore.setState({
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'try the burger',
+          createdAt: 1,
+          suggestedReplies: ['Add it to my cart'],
+        },
+      ],
+    });
+
+    render(<ChatScreen />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('prompt-chip-Add it to my cart'));
+    });
+
+    expect(mockClient.post).toHaveBeenCalledWith('/api/chat', {
+      sessionId: 'test-session',
+      message: 'Add it to my cart',
+    });
+  });
+
   it('tapping the New chat button confirms then clears the thread via the API', async () => {
     // Default Platform.OS in jest-expo is ios, so the confirm path goes
     // through Alert.alert. Stub it to immediately fire the destructive

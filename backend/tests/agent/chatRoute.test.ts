@@ -16,6 +16,7 @@ import {
 import { setAnthropicClient } from '../../src/services/agent/anthropic.js';
 import { appendTurn } from '../../src/services/agent/persistence.js';
 import { signAccessToken } from '../../src/services/auth.js';
+import { vi } from 'vitest';
 
 describe('POST /api/chat', () => {
   let burgerId: string;
@@ -281,6 +282,46 @@ describe('POST /api/chat', () => {
     });
     // Conversation was created but not linked to any user.
     expect(conv?.userId).toBeNull();
+  });
+
+  it('returns historyPersisted: true on a successful turn', async () => {
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('hello')],
+    });
+
+    const app = await buildTestApp();
+    const res = await request(app)
+      .post('/api/chat')
+      .send({ sessionId: 'chat-sess-1', message: 'hi' });
+    expect(res.status).toBe(200);
+    expect(res.body.historyPersisted).toBe(true);
+  });
+
+  it('returns historyPersisted: false when appendTurn throws (reply still sent)', async () => {
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('reply')],
+    });
+
+    // Force the persistence write to fail. The route MUST still return
+    // the model's reply with historyPersisted: false so the frontend can
+    // warn the user that the conversation memory is out of sync.
+    const spy = vi
+      .spyOn(prisma, '$transaction')
+      .mockRejectedValueOnce(new Error('db unavailable'));
+
+    const app = await buildTestApp();
+    try {
+      const res = await request(app)
+        .post('/api/chat')
+        .send({ sessionId: 'chat-sess-1', message: 'hi' });
+      expect(res.status).toBe(200);
+      expect(res.body.reply).toBe('reply');
+      expect(res.body.historyPersisted).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('returns 500 with INTERNAL_ERROR when the LLM call throws', async () => {

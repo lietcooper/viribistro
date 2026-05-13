@@ -93,11 +93,15 @@ chatRouter.post(
     // user — appendTurn upserts on sessionId so a session that started
     // anonymous gets attached on the first authenticated turn.
     const userId = optionalUserId(req);
+    let historyPersisted = true;
     try {
       await appendTurn(sessionId, userId, result.newTurnMessages);
     } catch (err) {
       // Persistence failure must not destroy the user's reply — log and
-      // continue. The frontend already has the new state in `result`.
+      // continue. We DO tell the client about it via historyPersisted: false
+      // so the UI can surface a subtle warning; without that signal the
+      // agent silently loses memory of this turn on the next request.
+      historyPersisted = false;
       logger.error(
         { err, sessionId },
         'Failed to persist chat turn — reply was sent but conversation history is now out of sync',
@@ -108,6 +112,7 @@ chatRouter.post(
       reply: result.reply,
       cartUpdate: result.cartUpdate,
       toolsUsed: result.toolsUsed,
+      historyPersisted,
     });
   },
 );

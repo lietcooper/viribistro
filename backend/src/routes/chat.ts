@@ -113,6 +113,7 @@ chatRouter.post(
       reply: result.reply,
       cartUpdate: result.cartUpdate,
       toolsUsed: result.toolsUsed,
+      suggestedReplies: result.suggestedReplies,
       historyPersisted,
     });
   },

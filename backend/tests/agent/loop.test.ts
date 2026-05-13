@@ -5,7 +5,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { resetDb } from '../helpers/resetDb.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { seedMenu } from '../../prisma/seed.js';
-import { runAgentLoop, MAX_LOOP_ITERATIONS } from '../../src/services/agent/loop.js';
+import {
+  runAgentLoop,
+  extractSuggestions,
+  MAX_LOOP_ITERATIONS,
+} from '../../src/services/agent/loop.js';
 import * as cartService from '../../src/services/cart.js';
 import {
   createFakeAnthropic,
@@ -49,8 +53,8 @@ describe('runAgentLoop', () => {
     await prisma.$disconnect();
   });
 
-  beforeEach(() => {
-    cartService.clearCart(SESSION);
+  beforeEach(async () => {
+    await cartService.clearCart(SESSION);
   });
 
   it('happy path: tool_use → tool_result → final text response', async () => {
@@ -80,7 +84,7 @@ describe('runAgentLoop', () => {
     expect(result.cartUpdate).not.toBeNull();
     expect(result.cartUpdate?.items[0]?.menuItemId).toBe(burgerId);
     // Cart was mutated in the real service.
-    expect(cartService.getCart(SESSION).items[0]?.menuItemId).toBe(burgerId);
+    expect((await cartService.getCart(SESSION)).items[0]?.menuItemId).toBe(burgerId);
     // Two model calls (turn 1 with tool_use, turn 2 with final text).
     expect(fake.calls.length).toBe(2);
     // The second call's messages should contain the assistant tool_use turn
@@ -120,7 +124,7 @@ describe('runAgentLoop', () => {
     expect(result.cartUpdate).toBeNull();
     expect(fake.calls.length).toBe(1);
     // Cart untouched.
-    expect(cartService.getCart(SESSION).items).toEqual([]);
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
   });
 
   it('clarify persists a synthetic tool_result so replayed history is well-formed', async () => {
@@ -143,12 +147,16 @@ describe('runAgentLoop', () => {
       model: 'test-model',
     });
 
-    // The persisted turn must be: user → assistant(tool_use) → user(tool_result).
+    // The persisted turn must be: user → assistant(tool_use) → user(tool_result) → assistant(text).
     // Without the synthetic tool_result, Anthropic rejects the next call.
-    expect(turn1.newTurnMessages).toHaveLength(3);
+    expect(turn1.newTurnMessages).toHaveLength(4);
     expect(turn1.newTurnMessages[0]?.role).toBe('user');
     expect(turn1.newTurnMessages[1]?.role).toBe('assistant');
     expect(turn1.newTurnMessages[2]?.role).toBe('user');
+    expect(turn1.newTurnMessages[3]).toEqual({
+      role: 'assistant',
+      content: 'Red or white?',
+    });
     const lastBlock = (turn1.newTurnMessages[2]?.content as Array<{ type: string; tool_use_id?: string }>)[0]!;
     expect(lastBlock.type).toBe('tool_result');
     expect(lastBlock.tool_use_id).toBe('tu_clr');
@@ -167,10 +175,10 @@ describe('runAgentLoop', () => {
       model: 'test-model',
     });
 
-    // Sanity: history threaded correctly — first call sees 4 prior messages
-    // (the 3 from turn 1 plus the new user message).
+    // Sanity: history threaded correctly — first call sees the prior turn
+    // plus the new user message.
     const params = fake2.calls[0]!;
-    expect(params.messages).toHaveLength(4);
+    expect(params.messages).toHaveLength(5);
   });
 
   it('max-iteration guard: stops after MAX_LOOP_ITERATIONS and returns a graceful reply', async () => {
@@ -467,5 +475,97 @@ describe('runAgentLoop', () => {
     expect(result.newTurnMessages[1]?.role).toBe('assistant');
     expect(result.newTurnMessages[2]?.role).toBe('user');
     expect(result.newTurnMessages[3]?.role).toBe('assistant');
+  });
+
+  it('parses suggestedReplies from the <SUGGEST> tail and strips it from reply', async () => {
+    const fake = createFakeAnthropic();
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [
+        textBlock(
+          'How about the Wagyu Beef Burger?\n<SUGGEST>["Add it to my cart","Show me drinks","What\'s in my cart?"]</SUGGEST>',
+        ),
+      ],
+    });
+
+    const menu = await loadMenuSnapshot();
+    const result = await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'recommend something',
+      model: 'test-model',
+    });
+
+    expect(result.reply).toBe('How about the Wagyu Beef Burger?');
+    expect(result.suggestedReplies).toEqual([
+      'Add it to my cart',
+      'Show me drinks',
+      "What's in my cart?",
+    ]);
+  });
+
+  it('returns an empty suggestedReplies when the SUGGEST tag is missing', async () => {
+    const fake = createFakeAnthropic();
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('Just a reply, no tail.')],
+    });
+    const menu = await loadMenuSnapshot();
+    const result = await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'hi',
+      model: 'test-model',
+    });
+    expect(result.reply).toBe('Just a reply, no tail.');
+    expect(result.suggestedReplies).toEqual([]);
+  });
+});
+
+describe('extractSuggestions', () => {
+  it('returns the reply unchanged when there is no SUGGEST tag', () => {
+    expect(extractSuggestions('Hello there.')).toEqual({
+      cleanReply: 'Hello there.',
+      suggestions: [],
+    });
+  });
+
+  it('strips the tag and returns parsed string suggestions', () => {
+    const r = extractSuggestions(
+      'Reply body.\n<SUGGEST>["One","Two","Three","Four"]</SUGGEST>',
+    );
+    expect(r.cleanReply).toBe('Reply body.');
+    expect(r.suggestions).toEqual(['One', 'Two', 'Three', 'Four']);
+  });
+
+  it('caps suggestions at 4 entries', () => {
+    const r = extractSuggestions(
+      'x\n<SUGGEST>["a","b","c","d","e","f"]</SUGGEST>',
+    );
+    expect(r.suggestions).toHaveLength(4);
+  });
+
+  it('filters out empty strings, non-strings, and overlong entries', () => {
+    const overlong = 'x'.repeat(100);
+    const r = extractSuggestions(
+      `x\n<SUGGEST>["good","",123,"${overlong}","also good"]</SUGGEST>`,
+    );
+    expect(r.suggestions).toEqual(['good', 'also good']);
+  });
+
+  it('falls back to [] when JSON is malformed but still strips the tag', () => {
+    const r = extractSuggestions('Body.\n<SUGGEST>not json</SUGGEST>');
+    expect(r.cleanReply).toBe('Body.');
+    expect(r.suggestions).toEqual([]);
+  });
+
+  it('falls back to [] when the parsed value is not an array', () => {
+    const r = extractSuggestions('Body.\n<SUGGEST>{"a":1}</SUGGEST>');
+    expect(r.cleanReply).toBe('Body.');
+    expect(r.suggestions).toEqual([]);
   });
 });

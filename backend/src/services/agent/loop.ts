@@ -71,12 +71,55 @@ export interface RunAgentLoopResult {
   toolsUsed: ToolUsedRecord[];
   cartUpdate: Cart | null;
   /**
+   * Short follow-up prompts the agent suggested to nudge the conversation
+   * forward. Parsed out of a `<SUGGEST>[...]</SUGGEST>` tail appended by
+   * the model on text-only turns (see systemPrompt rule #7). Empty array
+   * when the model omitted the tag or produced something we couldn't
+   * parse — never an error.
+   */
+  suggestedReplies: string[];
+  /**
    * The message turn(s) that should be appended to the conversation table.
    * Order: the user message, every assistant turn (with tool_use blocks),
    * every interleaved tool_result user turn, and the final assistant text.
    * Excludes the system prompt (which is never persisted).
    */
   newTurnMessages: Anthropic.MessageParam[];
+}
+
+// Permissive on contents — strip the tag whenever we see it at the tail
+// and try to JSON.parse the body. Falling back to [] on malformed bodies
+// keeps a bad model output from leaking the raw `<SUGGEST>` tag to users.
+const SUGGEST_TAG_RE = /<SUGGEST>([\s\S]*?)<\/SUGGEST>\s*$/;
+
+/**
+ * Pull the `<SUGGEST>[...]</SUGGEST>` tail out of a reply, returning the
+ * cleaned text and the parsed suggestions. Returns `[]` on absent or
+ * malformed JSON — the frontend will simply render no chips, which is the
+ * correct fallback. Exported for unit tests.
+ */
+export function extractSuggestions(reply: string): {
+  cleanReply: string;
+  suggestions: string[];
+} {
+  const match = reply.match(SUGGEST_TAG_RE);
+  if (!match) return { cleanReply: reply.trim(), suggestions: [] };
+
+  const cleanReply = reply.slice(0, match.index).trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[1]!);
+  } catch {
+    return { cleanReply, suggestions: [] };
+  }
+  if (!Array.isArray(parsed)) return { cleanReply, suggestions: [] };
+
+  const suggestions = parsed
+    .filter((s): s is string => typeof s === 'string')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.length <= 80)
+    .slice(0, 4);
+  return { cleanReply, suggestions };
 }
 
 const GRACEFUL_STUCK_REPLY =
@@ -108,7 +151,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
     maxTokens = 1024,
   } = args;
 
-  const cart = getCart(sessionId);
+  const cart = await getCart(sessionId);
 
   // The system array is split in two so the static half (persona + menu)
   // stays byte-stable across requests in the same chat — Anthropic returns
@@ -159,6 +202,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
         reply: GRACEFUL_STUCK_REPLY,
         toolsUsed,
         cartUpdate: null,
+        suggestedReplies: [],
         newTurnMessages: messages.slice(priorCount),
       };
     }
@@ -220,10 +264,12 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
       // The persisted turn now includes BOTH the assistant message with the
       // clarify tool_use block AND a synthetic tool_result, so the next
       // call's history replays as a valid Anthropic message sequence.
+      messages.push({ role: 'assistant', content: clarifyQuestion });
       return {
         reply: clarifyQuestion,
         toolsUsed,
-        cartUpdate: mutated ? getCart(sessionId) : null,
+        cartUpdate: mutated ? await getCart(sessionId) : null,
+        suggestedReplies: [],
         newTurnMessages: messages.slice(priorCount),
       };
     }
@@ -241,26 +287,29 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
   // route can persist it.
   messages.push({ role: 'assistant', content: response.content });
 
-  let reply: string;
+  let rawReply: string;
   if (response.stop_reason === 'refusal') {
     logger.info({ sessionId }, 'Agent loop received refusal stop_reason');
-    reply = GRACEFUL_REFUSAL_REPLY;
+    rawReply = GRACEFUL_REFUSAL_REPLY;
   } else if (response.stop_reason === 'max_tokens') {
     // Reply is truncated — keep what we got but warn.
     logger.warn(
       { sessionId },
       'Agent loop response was truncated by max_tokens — surfacing partial reply',
     );
-    reply = extractText(response) || GRACEFUL_STUCK_REPLY;
+    rawReply = extractText(response) || GRACEFUL_STUCK_REPLY;
   } else {
     // end_turn (or stop_sequence — same handling).
-    reply = extractText(response);
+    rawReply = extractText(response);
   }
 
+  const { cleanReply, suggestions } = extractSuggestions(rawReply);
+
   return {
-    reply,
+    reply: cleanReply,
     toolsUsed,
-    cartUpdate: mutated ? getCart(sessionId) : null,
+    cartUpdate: mutated ? await getCart(sessionId) : null,
+    suggestedReplies: suggestions,
     newTurnMessages: messages.slice(priorCount),
   };
 }

@@ -24,6 +24,7 @@ import {
   REFRESH_TOKEN_TTL_SECONDS,
 } from '../services/auth.js';
 import { RegisterBodySchema, LoginBodySchema } from '../schemas/auth.js';
+import { loginRateLimit } from '../middleware/rateLimit.js';
 
 export const REFRESH_COOKIE_NAME = 'refreshToken';
 
@@ -104,6 +105,7 @@ authRouter.post(
 
 authRouter.post(
   '/login',
+  loginRateLimit,
   validate({ body: LoginBodySchema }),
   async (req, res) => {
     const { email, password } = req.body as { email: string; password: string };

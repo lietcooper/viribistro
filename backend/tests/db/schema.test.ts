@@ -72,15 +72,17 @@ describe('Schema models', () => {
         sessionId: 'session-roundtrip',
         messages: {
           create: [
-            { role: 'user', content: { type: 'text', text: 'hi' } },
+            { role: 'user', sequence: 0, content: { type: 'text', text: 'hi' } },
             {
               role: 'assistant',
+              sequence: 1,
               content: [
                 { type: 'tool_use', id: 'tu_1', name: 'get_menu', input: {} },
               ],
             },
             {
               role: 'tool',
+              sequence: 2,
               content: [
                 { type: 'tool_result', tool_use_id: 'tu_1', content: '...' },
               ],
@@ -103,7 +105,11 @@ describe('Schema models', () => {
     const conv = await prisma.conversation.create({
       data: {
         sessionId: 'session-cascade',
-        messages: { create: [{ role: 'user', content: { type: 'text', text: 'x' } }] },
+        messages: {
+          create: [
+            { role: 'user', sequence: 0, content: { type: 'text', text: 'x' } },
+          ],
+        },
       },
     });
 

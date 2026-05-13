@@ -12,6 +12,7 @@ import { logger } from '../lib/logger.js';
 import { env } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import { validate } from '../middleware/validate.js';
+import { chatRateLimit } from '../middleware/rateLimit.js';
 import { ChatBodySchema, ChatHistoryParamsSchema } from '../schemas/chat.js';
 import { runAgentLoop } from '../services/agent/loop.js';
 import { getAnthropicClient } from '../services/agent/anthropic.js';
@@ -62,6 +63,7 @@ export const chatRouter: Router = Router();
 
 chatRouter.post(
   '/',
+  chatRateLimit,
   validate({ body: ChatBodySchema }),
   async (req, res) => {
     const { sessionId, message } = req.body as {

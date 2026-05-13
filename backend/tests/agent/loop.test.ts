@@ -304,6 +304,89 @@ describe('runAgentLoop', () => {
     expect(vol0.text).not.toBe(vol1.text);
   });
 
+  it('max_tokens stop_reason surfaces the partial reply rather than dropping it', async () => {
+    const fake = createFakeAnthropic();
+    fake.enqueue({
+      stop_reason: 'max_tokens',
+      content: [textBlock('Here is a long ans')], // truncated mid-sentence
+    });
+
+    const menu = await loadMenuSnapshot();
+    const result = await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'tell me about everything on the menu',
+      model: 'test-model',
+    });
+
+    expect(result.reply).toBe('Here is a long ans');
+    expect(result.cartUpdate).toBeNull();
+    expect(result.toolsUsed).toEqual([]);
+  });
+
+  it('max_tokens with empty text falls back to the graceful "got stuck" reply', async () => {
+    const fake = createFakeAnthropic();
+    fake.enqueue({
+      stop_reason: 'max_tokens',
+      content: [], // model produced nothing before getting cut off
+    });
+
+    const menu = await loadMenuSnapshot();
+    const result = await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'hi',
+      model: 'test-model',
+    });
+
+    expect(result.reply).toMatch(/got stuck|try rephrasing/i);
+  });
+
+  it('dispatches multiple tool_use blocks in a single assistant turn sequentially', async () => {
+    // Real-world case: model picks two items in one turn (e.g. "burger and salmon")
+    // and emits both tool_use blocks in the same assistant message. The
+    // tool_results must come back as ONE user message with multiple
+    // tool_result blocks (Anthropic protocol).
+    const fake = createFakeAnthropic();
+    fake.enqueue({
+      stop_reason: 'tool_use',
+      content: [
+        toolUseBlock('tu_a', 'get_cart', {}),
+        toolUseBlock('tu_b', 'get_menu', { category: 'mains' }),
+      ],
+    });
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('Done looking at things.')],
+    });
+
+    const menu = await loadMenuSnapshot();
+    const result = await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'show me my cart and the mains',
+      model: 'test-model',
+    });
+
+    expect(result.toolsUsed).toEqual(['get_cart', 'get_menu']);
+
+    // The second model call must receive a single user message containing
+    // BOTH tool_result blocks, paired to the right tool_use_ids.
+    const secondCall = fake.calls[1]!;
+    const lastUserMsg = secondCall.messages[secondCall.messages.length - 1]!;
+    expect(lastUserMsg.role).toBe('user');
+    const results = lastUserMsg.content as Array<{ type: string; tool_use_id: string }>;
+    expect(results).toHaveLength(2);
+    expect(results[0]?.tool_use_id).toBe('tu_a');
+    expect(results[1]?.tool_use_id).toBe('tu_b');
+  });
+
   it('refusal stop_reason terminates the loop with a graceful fallback reply', async () => {
     const fake = createFakeAnthropic();
     fake.enqueue({

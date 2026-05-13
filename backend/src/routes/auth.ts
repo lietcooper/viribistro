@@ -3,10 +3,17 @@
 // cookie. Cookie options are environment-aware: `secure` + `sameSite='none'`
 // in prod (Vercel↔Railway cross-site), `sameSite='lax'` otherwise.
 import { Router, type CookieOptions, type Response } from 'express';
+import passport from 'passport';
+import {
+  Strategy as GoogleStrategy,
+  type Profile as GoogleProfile,
+  type VerifyCallback,
+} from 'passport-google-oauth20';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../lib/env.js';
 import { AppError } from '../lib/AppError.js';
+import { logger } from '../lib/logger.js';
 import { validate } from '../middleware/validate.js';
 import {
   hashPassword,
@@ -174,4 +181,97 @@ authRouter.post('/logout', (_req, res) => {
   const { maxAge: _maxAge, ...clearOpts } = refreshCookieOptions();
   res.clearCookie(REFRESH_COOKIE_NAME, clearOpts);
   res.status(204).end();
+});
+
+// ─── Google OAuth ────────────────────────────────────────────────────────────
+//
+// Callback handoff decision:
+//   We DO NOT put the access token in a URL fragment. The callback only sets
+//   the refresh cookie and redirects the browser back to FRONTEND_URL. The
+//   frontend then calls /auth/refresh on mount to obtain a fresh access
+//   token. Why: URL fragments end up in browser history and ref logs;
+//   keeping the access token strictly in JSON+memory is safer. The brief
+//   "no token on first paint" UX issue is documented in docs/plans/frontend.md.
+
+export async function googleVerifyCallback(
+  _accessToken: string,
+  _refreshToken: string,
+  profile: GoogleProfile,
+  done: VerifyCallback,
+): Promise<void> {
+  try {
+    const email = profile.emails?.[0]?.value;
+    if (!email) {
+      return done(new AppError(400, 'GOOGLE_NO_EMAIL', 'Google profile did not include an email'));
+    }
+    const avatarUrl = profile.photos?.[0]?.value ?? null;
+    const name = profile.displayName?.trim() || email.split('@')[0]!;
+
+    // Upsert by email — if a local-provider account already exists with this
+    // email we leave it alone (do not silently convert it to google).
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return done(null, existing);
+    }
+    const created = await prisma.user.create({
+      data: {
+        email,
+        name,
+        avatarUrl,
+        provider: 'google',
+      },
+    });
+    return done(null, created);
+  } catch (err) {
+    logger.error({ err }, 'Google verify callback failed');
+    return done(err as Error);
+  }
+}
+
+// Register the strategy only if credentials are present. If a developer hasn't
+// configured Google yet, the routes still mount but return 503 — that's
+// clearer than crashing at boot.
+const googleConfigured = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+if (googleConfigured) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        callbackURL: env.GOOGLE_CALLBACK_URL,
+      },
+      googleVerifyCallback,
+    ),
+  );
+}
+
+authRouter.get('/google', (req, res, next) => {
+  if (!googleConfigured) {
+    return next(
+      new AppError(503, 'GOOGLE_NOT_CONFIGURED', 'Google sign-in is not configured on this server'),
+    );
+  }
+  return passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false,
+  })(req, res, next);
+});
+
+authRouter.get('/google/callback', (req, res, next) => {
+  if (!googleConfigured) {
+    return next(
+      new AppError(503, 'GOOGLE_NOT_CONFIGURED', 'Google sign-in is not configured on this server'),
+    );
+  }
+  return passport.authenticate('google', { session: false }, (err: Error | null, user: PublicUser | false) => {
+    if (err) return next(err);
+    if (!user) {
+      return next(new AppError(401, 'GOOGLE_AUTH_FAILED', 'Google authentication failed'));
+    }
+    const { refreshToken } = issueTokens(user);
+    setRefreshCookie(res, refreshToken);
+    // Bounce the user back to the frontend. The frontend's bootstrap effect
+    // hits /auth/refresh on mount and exchanges the cookie for an access token.
+    res.redirect(env.FRONTEND_URL);
+  })(req, res, next);
 });

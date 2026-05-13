@@ -3,6 +3,7 @@
 // the global error handler renders the JSON response.
 import type { RequestHandler } from 'express';
 import { AppError } from '../lib/AppError.js';
+import { logger } from '../lib/logger.js';
 import { verifyAccessToken } from '../services/auth.js';
 
 export const requireAuth: RequestHandler = (req, _res, next) => {
@@ -24,8 +25,15 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
     // src/types/express.d.ts for why) so handlers use authedUser(req).
     (req as { user?: unknown }).user = payload;
     next();
-  } catch {
-    // Expired vs malformed — same user-visible outcome (re-auth required).
+  } catch (err) {
+    // Expired vs malformed — same user-visible outcome (re-auth required),
+    // but we log the underlying jwt error name/message so operators can
+    // distinguish an expired-token flood from a probing-attack burst
+    // (CLAUDE.md: no silent failures).
+    logger.warn(
+      { err, url: req.originalUrl, method: req.method },
+      'Access token verification failed',
+    );
     next(new AppError(401, 'INVALID_ACCESS_TOKEN', 'Invalid or expired access token'));
   }
 };

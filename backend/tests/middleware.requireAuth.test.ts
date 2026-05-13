@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { requireAuth } from '../src/middleware/requireAuth.js';
 import { errorHandler } from '../src/middleware/errorHandler.js';
 import { signAccessToken } from '../src/services/auth.js';
+import { logger } from '../src/lib/logger.js';
 
 function makeApp(): express.Express {
   const app = express();
@@ -54,6 +55,29 @@ describe('requireAuth middleware', () => {
       .set('Authorization', `Bearer ${bogus}`);
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('INVALID_ACCESS_TOKEN');
+  });
+
+  it('logs the underlying verification error when the token is invalid', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const bogus = jwt.sign(
+        { sub: 'user_abc', email: 'a@b.com' },
+        'wrong-secret-32-bytes-of-padding-12345',
+        { expiresIn: '15m' },
+      );
+      const res = await request(makeApp())
+        .get('/protected')
+        .set('Authorization', `Bearer ${bogus}`);
+      expect(res.status).toBe(401);
+      // The middleware MUST log the failure — empty catch blocks are a
+      // CLAUDE.md "no silent failures" violation.
+      expect(warnSpy).toHaveBeenCalled();
+      const [ctx, msg] = warnSpy.mock.calls[0]!;
+      expect(msg).toMatch(/access token verification failed/i);
+      expect((ctx as { err?: unknown }).err).toBeInstanceOf(Error);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('attaches req.user and calls next() when the token is valid', async () => {

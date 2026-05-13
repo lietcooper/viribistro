@@ -13,6 +13,8 @@ import helmet from 'helmet';
 import pinoHttp from 'pino-http';
 import { env } from './lib/env.js';
 import { logger } from './lib/logger.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { authRouter } from './routes/auth.js';
 
 export function createApp(): Express {
   const app = express();
@@ -37,6 +39,11 @@ export function createApp(): Express {
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ ok: true });
   });
+
+  app.use('/auth', authRouter);
+
+  // Must be the LAST middleware mounted.
+  app.use(errorHandler);
 
   return app;
 }

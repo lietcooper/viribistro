@@ -45,12 +45,37 @@ function serializeOrder(order: {
   };
 }
 
+// Per-session in-flight gate. The cart lives in process memory and we only
+// clear it AFTER the transaction commits, so two concurrent POST /api/orders
+// requests for the same sessionId would both read the same cart and create
+// two Order rows. A DB-level constraint can't help — the carts are not
+// persisted. So we serialize at the call site with a Set keyed by sessionId.
+const inFlightConfirmations: Set<string> = new Set();
+
 /**
  * Confirm a cart into a persisted Order. Re-reads each cart item's current
  * price from the DB inside the transaction so a stale in-memory snapshot
  * can't drift past a menu price update.
  */
 export async function confirmCart(userId: string, sessionId: string): Promise<SerializedOrder> {
+  if (inFlightConfirmations.has(sessionId)) {
+    throw new AppError(
+      409,
+      'ORDER_IN_PROGRESS',
+      'An order for this session is already being confirmed',
+    );
+  }
+  inFlightConfirmations.add(sessionId);
+  try {
+    return await confirmCartInner(userId, sessionId);
+  } finally {
+    // ALWAYS release: even on success, even on failure, even on AppError.
+    // Otherwise the session would be permanently locked out of ordering.
+    inFlightConfirmations.delete(sessionId);
+  }
+}
+
+async function confirmCartInner(userId: string, sessionId: string): Promise<SerializedOrder> {
   const current = cart.getCart(sessionId);
   if (current.items.length === 0) {
     throw new AppError(400, 'CART_EMPTY', 'Cart is empty');

@@ -92,6 +92,55 @@ describe('Orders routes', () => {
       expect(dbOrder?.items).toHaveLength(2);
     });
 
+    it('rejects concurrent confirmations of the same sessionId with 409 ORDER_IN_PROGRESS', async () => {
+      const { accessToken } = await registerAndLogin();
+      await cartService.addItem('order-sess', burgerId, 1);
+
+      const app = await buildTestApp();
+      // Fire two simultaneous requests. The in-memory mutex keyed by
+      // sessionId must let exactly one through; the other gets 409.
+      const [a, b] = await Promise.all([
+        request(app)
+          .post('/api/orders')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ sessionId: 'order-sess' }),
+        request(app)
+          .post('/api/orders')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ sessionId: 'order-sess' }),
+      ]);
+
+      const statuses = [a.status, b.status].sort();
+      expect(statuses).toEqual([201, 409]);
+      const conflict = a.status === 409 ? a : b;
+      expect(conflict.body.error.code).toBe('ORDER_IN_PROGRESS');
+
+      // Only one Order row exists.
+      const orders = await prisma.order.findMany({});
+      expect(orders).toHaveLength(1);
+    });
+
+    it('releases the per-session lock after a failed confirmation', async () => {
+      const { accessToken } = await registerAndLogin();
+      const app = await buildTestApp();
+
+      // First call fails (empty cart).
+      const fail = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ sessionId: 'order-sess' });
+      expect(fail.status).toBe(400);
+      expect(fail.body.error.code).toBe('CART_EMPTY');
+
+      // Then a real order with the same sessionId should still succeed.
+      await cartService.addItem('order-sess', burgerId, 1);
+      const ok = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ sessionId: 'order-sess' });
+      expect(ok.status).toBe(201);
+    });
+
     it('snapshots unitPrice from the menu item at confirmation time', async () => {
       const { accessToken } = await registerAndLogin();
       await cartService.addItem('order-sess', burgerId, 1);

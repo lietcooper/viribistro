@@ -2,23 +2,28 @@
 // On mount it calls /auth/refresh once via useBootstrapAuth — if the
 // browser still holds a valid refresh cookie the user lands directly
 // in MainTabs; otherwise they see the auth stack.
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 
 import { Splash } from '@/components/Splash';
 import { useBootstrapAuth } from '@/hooks/useBootstrapAuth';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { AuthStack } from './AuthStack';
-import { MainTabs } from './MainTabs';
+import { MainTabs, type MainTabsParamList } from './MainTabs';
 
 export function RootNavigator() {
   const { ready } = useBootstrapAuth();
   const token = useAuthStore((s) => s.token);
+  // Held at the root so the post-checkout success modal — rendered
+  // alongside the tab navigator — can navigate to a specific tab on
+  // auto-dismiss without each tab listener having to capture its own
+  // `navigation` prop.
+  const navRef = useNavigationContainerRef<MainTabsParamList>();
 
   if (!ready) return <Splash />;
 
   return (
-    <NavigationContainer>
-      {token ? <MainTabs /> : <AuthStack />}
+    <NavigationContainer ref={navRef}>
+      {token ? <MainTabs navRef={navRef} /> : <AuthStack />}
     </NavigationContainer>
   );
 }

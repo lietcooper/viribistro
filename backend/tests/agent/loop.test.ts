@@ -75,7 +75,8 @@ describe('runAgentLoop', () => {
     });
 
     expect(result.reply).toBe('Added a Wagyu Beef Burger to your cart.');
-    expect(result.toolsUsed).toEqual(['add_to_cart']);
+    expect(result.toolsUsed.map((t) => t.name)).toEqual(['add_to_cart']);
+    expect(result.toolsUsed[0]?.input).toMatchObject({ itemId: burgerId, quantity: 1 });
     expect(result.cartUpdate).not.toBeNull();
     expect(result.cartUpdate?.items[0]?.menuItemId).toBe(burgerId);
     // Cart was mutated in the real service.
@@ -115,7 +116,7 @@ describe('runAgentLoop', () => {
     });
 
     expect(result.reply).toBe('Did you mean red or white wine?');
-    expect(result.toolsUsed).toEqual(['clarify']);
+    expect(result.toolsUsed.map((t) => t.name)).toEqual(['clarify']);
     expect(result.cartUpdate).toBeNull();
     expect(fake.calls.length).toBe(1);
     // Cart untouched.
@@ -374,7 +375,7 @@ describe('runAgentLoop', () => {
       model: 'test-model',
     });
 
-    expect(result.toolsUsed).toEqual(['get_cart', 'get_menu']);
+    expect(result.toolsUsed.map((t) => t.name)).toEqual(['get_cart', 'get_menu']);
 
     // The second model call must receive a single user message containing
     // BOTH tool_result blocks, paired to the right tool_use_ids.

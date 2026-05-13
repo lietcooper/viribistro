@@ -82,7 +82,8 @@ describe('POST /api/chat', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.reply).toBe('Added a Wagyu Beef Burger to your cart.');
-    expect(res.body.toolsUsed).toEqual(['add_to_cart']);
+    expect(res.body.toolsUsed.map((t: { name: string }) => t.name)).toEqual(['add_to_cart']);
+    expect(res.body.toolsUsed[0].input).toMatchObject({ itemId: burgerId, quantity: 1 });
     expect(res.body.cartUpdate.items[0].menuItemId).toBe(burgerId);
     expect(res.body.cartUpdate.items[0].quantity).toBe(1);
 
@@ -163,7 +164,7 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(200);
     expect(res.body.reply).toMatch(/red|white/i);
     expect(res.body.cartUpdate).toBeNull();
-    expect(res.body.toolsUsed).toEqual(['clarify']);
+    expect(res.body.toolsUsed.map((t: { name: string }) => t.name)).toEqual(['clarify']);
     // Cart untouched.
     expect(cartService.getCart('chat-sess-ambig').items).toEqual([]);
   });
@@ -221,7 +222,7 @@ describe('POST /api/chat', () => {
       .send({ sessionId: 'chat-sess-multi', message: 'actually make that three' });
 
     expect(res.status).toBe(200);
-    expect(res.body.toolsUsed).toEqual(['modify_item']);
+    expect(res.body.toolsUsed.map((t: { name: string }) => t.name)).toEqual(['modify_item']);
     expect(res.body.cartUpdate.items[0].menuItemId).toBe(salmonId);
     expect(res.body.cartUpdate.items[0].quantity).toBe(3);
 

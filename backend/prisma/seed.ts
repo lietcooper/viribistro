@@ -264,12 +264,14 @@ async function main(): Promise<void> {
   }
 }
 
-// Run as a script. `import.meta.url` check makes the file safe to import
-// from tests without triggering the side effect.
+// Run as a script. Detect "is this the entry file?" via a filename
+// suffix check instead of comparing URLs — `import.meta.url` is
+// `file:///C:/...` on Windows while `process.argv[1]` is `C:\\...`,
+// so URL equality silently fails there and the seed becomes a no-op.
 const isDirectRun =
   typeof process !== 'undefined' &&
-  process.argv[1] &&
-  import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  typeof process.argv[1] === 'string' &&
+  /[\\/]seed\.(ts|js|mjs)$/.test(process.argv[1]);
 
 if (isDirectRun) {
   main().catch((err) => {

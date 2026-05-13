@@ -94,3 +94,4 @@ Desktop.ini
 .claude/settings.local.json
 .claude/*.local.*
 **agent-memory
+**/.claude

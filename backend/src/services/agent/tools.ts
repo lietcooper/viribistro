@@ -187,13 +187,13 @@ export async function dispatchTool(
   block: ToolUseLike,
   ctx: DispatchContext,
 ): Promise<DispatchResult> {
-  const name = block.name as ToolName;
-
-  if (!(name in toolInputZod)) {
+  if (!(block.name in toolInputZod)) {
     // Unknown tool is a *programmer* error (we shipped a mismatched schema).
     // Throw so the loop's outer error handler returns a 500.
     throw new AppError(500, 'UNKNOWN_TOOL', `LLM called unknown tool: ${block.name}`);
   }
+  // Safe to narrow now that the `in` guard above has run.
+  const name = block.name as ToolName;
 
   const schema = toolInputZod[name];
   const parsed = schema.safeParse(block.input);

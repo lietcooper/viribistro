@@ -66,10 +66,11 @@ describe('Google OAuth', () => {
       expect(dbUser?.avatarUrl).toBe('https://example.com/avatar.png');
     });
 
-    it('returns the existing User when one already exists for that email', async () => {
-      // Pre-seed a *local* user with a passwordHash to make the leak
-      // scenario concrete: if select is missing, that hash flows to Passport.
-      const existing = await prisma.user.create({
+    it('rejects Google sign-in when a local-provider account exists for that email', async () => {
+      // Pre-seed a *local* user. Auto-linking this account to a Google
+      // identity would be an account-takeover vector — the verify
+      // callback must refuse it instead of silently merging.
+      await prisma.user.create({
         data: {
           email: 'returning@example.com',
           name: 'Returning Customer',
@@ -86,7 +87,42 @@ describe('Google OAuth', () => {
         photos: [{ value: 'https://example.com/new.png' }],
       };
 
-      const user = await new Promise<{ id: string; email: string; provider: string; passwordHash?: string }>((resolve, reject) => {
+      await expect(
+        new Promise((resolve, reject) => {
+          googleVerifyCallback('access', 'refresh', profile, (err, u) => {
+            if (err) return reject(err);
+            resolve(u);
+          });
+        }),
+      ).rejects.toMatchObject({ code: 'EMAIL_TAKEN_LOCAL' });
+    });
+
+    it('returns the existing User when a google-provider account already exists for that email', async () => {
+      // Returning Google user — auto-link is safe because the existing
+      // account was itself created via Google. The callback must NOT
+      // leak passwordHash even though google accounts have it as null.
+      const existing = await prisma.user.create({
+        data: {
+          email: 'google-returning@example.com',
+          name: 'Returning Google User',
+          provider: 'google',
+          avatarUrl: 'https://example.com/old.png',
+        },
+      });
+
+      const profile = {
+        id: 'google-user-2b',
+        displayName: 'Returning Google User',
+        emails: [{ value: 'google-returning@example.com' }],
+        photos: [{ value: 'https://example.com/new.png' }],
+      };
+
+      const user = await new Promise<{
+        id: string;
+        email: string;
+        provider: string;
+        passwordHash?: string;
+      }>((resolve, reject) => {
         googleVerifyCallback('access', 'refresh', profile, (err, u) => {
           if (err) return reject(err);
           resolve(u);
@@ -94,8 +130,7 @@ describe('Google OAuth', () => {
       });
 
       expect(user.id).toBe(existing.id);
-      expect(user.email).toBe('returning@example.com');
-      // The leak this task fixes: passwordHash MUST be absent.
+      expect(user.email).toBe('google-returning@example.com');
       expect(user).not.toHaveProperty('passwordHash');
     });
 

@@ -28,6 +28,11 @@ jest.mock('@react-navigation/native', () => ({
   NavigationContainer: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
+  useNavigationContainerRef: () => ({
+    isReady: () => false,
+    navigate: jest.fn(),
+    current: null,
+  }),
 }));
 
 // Skip the bootstrap roundtrip; the navigator should treat us as

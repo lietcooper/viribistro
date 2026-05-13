@@ -40,13 +40,12 @@ export function createFakeAnthropic(): FakeAnthropic {
     },
     messages: {
       async create(params) {
-        // Snapshot the messages + system arrays so later mutations by the
-        // loop don't retroactively change what tests see.
-        const snapshot: Anthropic.MessageCreateParams = {
-          ...params,
-          messages: [...(params.messages ?? [])],
-          ...(params.system !== undefined ? { system: params.system } : {}),
-        };
+        // Deep-snapshot so later mutations by the loop don't retroactively
+        // change what tests see. A shallow [...params.messages] still
+        // points at the same message OBJECTS — if a future loop change
+        // mutates `content` in place, assertions on past calls would
+        // suddenly see the mutated state.
+        const snapshot = structuredClone(params) as Anthropic.MessageCreateParams;
         calls.push(snapshot);
         const next = queue.shift();
         if (!next) {

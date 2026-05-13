@@ -50,6 +50,12 @@ cartRouter.delete(
   },
 );
 
+// NOTE on route order: `DELETE /:menuItemId` is registered above and
+// would match `/reset` if a client mistakenly sent DELETE to this path
+// (no-op since no item has id "reset"). The method (POST vs DELETE)
+// keeps them distinct — keep this route POST as the CLAUDE.md spec
+// requires, and do not rename the param above to anything that could
+// shadow a literal segment.
 cartRouter.post(
   '/reset',
   validate({ body: ResetCartBodySchema }),

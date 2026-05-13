@@ -24,6 +24,10 @@ export async function resetDb(): Promise<void> {
       AND table_name NOT LIKE '\\_%' ESCAPE '\\'
   `;
   if (rows.length === 0) return;
+  // Table names come from `information_schema.tables` filtered to the
+  // public schema's BASE TABLEs — never from user input — so the
+  // interpolation here is not an injection risk. DDL (TRUNCATE) can't be
+  // parameterised, which is why we use $executeRawUnsafe.
   const quoted = rows.map((r) => `"${r.table_name}"`).join(', ');
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE;`,

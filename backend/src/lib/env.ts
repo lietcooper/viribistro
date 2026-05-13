@@ -6,10 +6,17 @@ const EnvSchema = z
   .object({
     DATABASE_URL: z.string().url(),
 
-    JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 chars'),
+    // 32 chars is the NIST-recommended minimum for HMAC-SHA256 keys
+    // (256 bits). Generate one with `openssl rand -hex 32`.
+    JWT_SECRET: z
+      .string()
+      .min(32, 'JWT_SECRET must be at least 32 chars (use `openssl rand -hex 32`)'),
     JWT_REFRESH_SECRET: z
       .string()
-      .min(16, 'JWT_REFRESH_SECRET must be at least 16 chars'),
+      .min(
+        32,
+        'JWT_REFRESH_SECRET must be at least 32 chars (use `openssl rand -hex 32`)',
+      ),
 
     // OAuth values may be blank in dev — Google routes will 503 if missing.
     GOOGLE_CLIENT_ID: z.string().default(''),

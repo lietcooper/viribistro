@@ -53,9 +53,22 @@ export interface RunAgentLoopArgs {
   maxTokens?: number;
 }
 
+/**
+ * Per-tool record surfaced on the response envelope. The shape matches
+ * the frontend's `ChatToolUsed` type so the wire contract is honest.
+ * `input` is whatever the model passed to the tool (already-parsed JSON
+ * from the Anthropic SDK — we don't pre-validate before recording so
+ * downstream UI can show exactly what the model attempted, even on
+ * validation failures).
+ */
+export interface ToolUsedRecord {
+  name: ToolName;
+  input: unknown;
+}
+
 export interface RunAgentLoopResult {
   reply: string;
-  toolsUsed: ToolName[];
+  toolsUsed: ToolUsedRecord[];
   cartUpdate: Cart | null;
   /**
    * The message turn(s) that should be appended to the conversation table.
@@ -123,7 +136,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
   ];
   const priorCount = priorMessages.length;
 
-  const toolsUsed: ToolName[] = [];
+  const toolsUsed: ToolUsedRecord[] = [];
   let mutated = false;
   let iteration = 0;
 
@@ -171,7 +184,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
         { sessionId },
       );
 
-      toolsUsed.push(dispatched.toolName);
+      toolsUsed.push({ name: dispatched.toolName, input: tu.input });
 
       if (dispatched.type === 'clarify') {
         // Don't return immediately — we still need a matching tool_result for

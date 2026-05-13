@@ -94,9 +94,19 @@ describe('Public menu routes', () => {
 
     it('returns 404 when not found', async () => {
       const app = await buildTestApp();
-      const res = await request(app).get('/api/menu/cnotarealcuidatall');
+      // Syntactically valid CUID v1 (`c` + 24 lowercase alphanumerics)
+      // that the DB doesn't know about — exercises the route-layer 404,
+      // not the schema-layer 400.
+      const res = await request(app).get('/api/menu/c000000000000000000000000');
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe('NOT_FOUND');
+    });
+
+    it('returns 400 for a malformed id (rejected by MenuParamsSchema)', async () => {
+      const app = await buildTestApp();
+      const res = await request(app).get('/api/menu/not-a-cuid');
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
   });
 });

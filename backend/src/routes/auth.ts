@@ -140,6 +140,14 @@ authRouter.post(
   },
 );
 
+// Known limitation: refresh-token rotation is NOT implemented. Each
+// successful /refresh issues a new pair, but the old refresh token
+// remains valid until its 7-day TTL expires. A stolen cookie therefore
+// keeps working for up to a week. Production-grade systems track
+// issued refresh tokens in a revocation table so the previous token is
+// invalidated on every rotation. For this portfolio project we accept
+// the trade-off; if you ever wire token rotation, add a `RefreshToken`
+// model keyed by jti and verify it on every call.
 authRouter.post('/refresh', async (req, res) => {
   const token = (req.cookies?.[REFRESH_COOKIE_NAME] as string | undefined) ?? '';
   if (!token) {
@@ -220,15 +228,35 @@ export async function googleVerifyCallback(
     const avatarUrl = profile.photos?.[0]?.value ?? null;
     const name = profile.displayName?.trim() || email.split('@')[0]!;
 
-    // Upsert by email — if a local-provider account already exists with this
-    // email we leave it alone (do not silently convert it to google). Select
-    // explicitly so passwordHash never reaches the Passport pipeline (and
-    // therefore never reaches downstream req.user / logs / serializers).
+    // Look up the existing account by email. Two important security rules:
+    //  1. If a *local-provider* account already exists with this email, we
+    //     REFUSE the Google sign-in. Auto-linking would let anyone holding
+    //     the Google account of an email take over the password account —
+    //     a real account-takeover vector if the user signed up with
+    //     email/password and later someone else gains control of that
+    //     Google address (org admin, recovered domain, etc.). The safe
+    //     path is to make the user log in with their original method.
+    //  2. We always select PUBLIC_USER_SELECT so `passwordHash` never
+    //     reaches the Passport pipeline (and therefore never reaches
+    //     downstream req.user / logs / serializers).
     const existing = await prisma.user.findUnique({
       where: { email },
-      select: PUBLIC_USER_SELECT,
+      select: { ...PUBLIC_USER_SELECT, provider: true },
     });
     if (existing) {
+      if (existing.provider === 'local') {
+        logger.warn(
+          { email },
+          'Google sign-in attempted for an email registered locally — refusing to auto-link',
+        );
+        return done(
+          new AppError(
+            409,
+            'EMAIL_TAKEN_LOCAL',
+            'An account with this email already exists. Please sign in with your password.',
+          ),
+        );
+      }
       return done(null, existing);
     }
     const created = await prisma.user.create({

@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { SessionId } from './sessionId.js';
 
-const SessionId = z.string().min(1).max(128);
 const MenuItemId = z.string().min(1).max(128);
 
 export const GetCartQuerySchema = z.object({

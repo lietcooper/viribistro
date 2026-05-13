@@ -1,5 +1,6 @@
 import { z } from 'zod';
+import { SessionId } from './sessionId.js';
 
 export const CreateOrderBodySchema = z.object({
-  sessionId: z.string().min(1).max(128),
+  sessionId: SessionId,
 });

@@ -1,9 +1,9 @@
 import { z } from 'zod';
+import { SessionId } from './sessionId.js';
 
 // sessionId is opaque to the backend — frontend generates a UUID and reuses
-// it for the lifetime of the chat. Cap at 128 chars to keep DB indexes
-// pleasant.
-const SessionId = z.string().min(1).max(128);
+// it for the lifetime of the chat. The shared SessionId validator caps the
+// length and restricts the alphabet to keep the Conversation table tidy.
 
 export const ChatBodySchema = z.object({
   sessionId: SessionId,

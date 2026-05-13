@@ -79,18 +79,38 @@ function renderCart(cart: Cart): string {
 }
 
 /**
- * Build the system prompt text. Pass a fresh menu + cart snapshot every call
- * — the prompt is never cached across sessions (only across requests within
- * one session, via Anthropic prompt caching at the API layer).
+ * The STATIC half of the system prompt: persona + menu. Byte-identical for
+ * every request in a chat session (the menu doesn't change mid-session), so
+ * the loop runner wraps this in cache_control: ephemeral and Anthropic
+ * returns a cache hit on subsequent requests.
+ *
+ * IMPORTANT: do NOT include cart state here. Even a single quantity change
+ * mutates the text and busts the prefix cache for that session.
  */
-export function buildSystemPrompt(menu: MenuSnapshotItem[], cart: Cart): string {
+export function buildStaticSystemPrompt(menu: MenuSnapshotItem[]): string {
   return [
     PERSONA_HEADER,
     '',
     '=== MENU ===',
     renderMenu(menu),
-    '',
-    '=== CURRENT CART ===',
-    renderCart(cart),
   ].join('\n');
+}
+
+/**
+ * The VOLATILE half: cart state. Emitted as a separate (uncached) text
+ * block in the system array — Anthropic still receives it as part of the
+ * system prompt, but the static prefix above keeps caching.
+ */
+export function renderCartBlock(cart: Cart): string {
+  return ['=== CURRENT CART ===', renderCart(cart)].join('\n');
+}
+
+/**
+ * Convenience helper that concatenates both halves — kept for tests and
+ * any caller that wants the full prompt as one string. Production code
+ * (the loop runner) uses the two builders directly so the static half can
+ * be cached.
+ */
+export function buildSystemPrompt(menu: MenuSnapshotItem[], cart: Cart): string {
+  return [buildStaticSystemPrompt(menu), '', renderCartBlock(cart)].join('\n');
 }

@@ -229,7 +229,7 @@ describe('runAgentLoop', () => {
     expect(fake.calls.length).toBe(1);
   });
 
-  it('wraps the system prompt as a text block with cache_control: ephemeral', async () => {
+  it('emits two system blocks: cached static (persona+menu) and volatile cart', async () => {
     const fake = createFakeAnthropic();
     fake.enqueue({
       stop_reason: 'end_turn',
@@ -249,11 +249,59 @@ describe('runAgentLoop', () => {
     const params = fake.calls[0]!;
     expect(Array.isArray(params.system)).toBe(true);
     const systemArray = params.system as Anthropic.TextBlockParam[];
-    expect(systemArray).toHaveLength(1);
+    expect(systemArray).toHaveLength(2);
+
+    // Block 0 — static, cacheable, contains the menu.
     expect(systemArray[0]?.type).toBe('text');
     expect(systemArray[0]?.cache_control).toEqual({ type: 'ephemeral' });
-    // And the menu snapshot was injected.
     expect(systemArray[0]?.text).toContain('Wagyu Beef Burger');
+    // Static block MUST NOT contain the cart heading — otherwise mutations
+    // bust the prefix cache.
+    expect(systemArray[0]?.text).not.toContain('CURRENT CART');
+
+    // Block 1 — volatile, uncached, holds the cart.
+    expect(systemArray[1]?.type).toBe('text');
+    expect(systemArray[1]?.cache_control).toBeUndefined();
+    expect(systemArray[1]?.text).toContain('CURRENT CART');
+  });
+
+  it('cart mutations do not change the cached static system block (byte-stable across requests)', async () => {
+    // Two requests in the same session: one with empty cart, one with a
+    // burger in cart. The static block must be byte-identical so Anthropic
+    // returns a cache_read on the second call.
+    const fake = createFakeAnthropic();
+    fake.enqueue({ stop_reason: 'end_turn', content: [textBlock('a')] });
+    fake.enqueue({ stop_reason: 'end_turn', content: [textBlock('b')] });
+
+    const menu = await loadMenuSnapshot();
+
+    await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'first',
+      model: 'test-model',
+    });
+
+    await cartService.addItem(SESSION, burgerId, 1);
+
+    await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'second',
+      model: 'test-model',
+    });
+
+    const sys0 = (fake.calls[0]!.system as Anthropic.TextBlockParam[])[0]!;
+    const sys1 = (fake.calls[1]!.system as Anthropic.TextBlockParam[])[0]!;
+    expect(sys0.text).toBe(sys1.text);
+    // And the volatile cart block DID change between calls.
+    const vol0 = (fake.calls[0]!.system as Anthropic.TextBlockParam[])[1]!;
+    const vol1 = (fake.calls[1]!.system as Anthropic.TextBlockParam[])[1]!;
+    expect(vol0.text).not.toBe(vol1.text);
   });
 
   it('refusal stop_reason terminates the loop with a graceful fallback reply', async () => {

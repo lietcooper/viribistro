@@ -20,7 +20,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../lib/logger.js';
 import { dispatchTool, toolSchemas, type DispatchResult, type ToolName } from './tools.js';
-import { buildSystemPrompt, type MenuSnapshotItem } from './systemPrompt.js';
+import {
+  buildStaticSystemPrompt,
+  renderCartBlock,
+  type MenuSnapshotItem,
+} from './systemPrompt.js';
 import { getCart, type Cart } from '../cart.js';
 
 export const MAX_LOOP_ITERATIONS = 6;
@@ -92,16 +96,21 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
   } = args;
 
   const cart = getCart(sessionId);
-  const systemText = buildSystemPrompt(menu, cart);
 
-  // Cache_control marks the system block as cacheable (CLAUDE.md design /
-  // docs/plans/ai-agent.md step 14). The menu snapshot is large enough on
-  // a 24-item bistro that Sonnet 4.6 will actually hit the cache floor.
+  // The system array is split in two so the static half (persona + menu)
+  // stays byte-stable across requests in the same chat — Anthropic returns
+  // a cache hit on it. The volatile cart block is appended as a separate
+  // text block WITHOUT cache_control so cart mutations don't bust the
+  // prefix cache (CLAUDE.md design / docs/plans/ai-agent.md step 14).
   const system: Anthropic.TextBlockParam[] = [
     {
       type: 'text',
-      text: systemText,
+      text: buildStaticSystemPrompt(menu),
       cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text: renderCartBlock(cart),
     },
   ];
 

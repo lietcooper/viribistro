@@ -32,8 +32,8 @@ describe.skipIf(!LIVE)('live Anthropic integration', () => {
     await prisma.$disconnect();
   });
 
-  beforeEach(() => {
-    cartService.clearCart('live-sess-1');
+  beforeEach(async () => {
+    await cartService.clearCart('live-sess-1');
   });
 
   it('adds two items from a single natural-language message', { timeout: 60_000 }, async () => {
@@ -49,7 +49,7 @@ describe.skipIf(!LIVE)('live Anthropic integration', () => {
     expect(typeof res.body.reply).toBe('string');
     expect(res.body.reply.length).toBeGreaterThan(0);
 
-    const cart = cartService.getCart('live-sess-1');
+    const cart = await cartService.getCart('live-sess-1');
     expect(cart.items.length).toBeGreaterThanOrEqual(2);
     const names = cart.items.map((i) => i.name.toLowerCase());
     expect(names.some((n) => n.includes('chicken sandwich'))).toBe(true);

@@ -11,6 +11,8 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 
+import { getApiClient } from '@/lib/api';
+import { getSessionId } from '@/lib/session';
 import type { Cart, CartItem } from '@/types/api';
 
 export interface CartState {
@@ -20,6 +22,7 @@ export interface CartState {
   removeItem: (menuItemId: string) => void;
   modifyItem: (menuItemId: string, newQuantity: number) => void;
   clearCart: () => void;
+  hydrateCart: () => Promise<void>;
   reconcile: (cart: Cart) => void;
 }
 
@@ -61,6 +64,17 @@ function withTotal(items: CartItem[]) {
   return { items, total: computeTotal(items) };
 }
 
+async function refreshServerCart(): Promise<void> {
+  const res = await getApiClient().get<{ cart: Cart }>('/api/cart', {
+    params: { sessionId: getSessionId() },
+  });
+  useCartStore.getState().reconcile(res.data.cart);
+}
+
+function logSyncFailure(err: unknown): void {
+  console.warn('[cart] server sync failed:', err);
+}
+
 export const useCartStore = create<CartState>((set) => ({
   items: [],
   total: '0.00',
@@ -78,10 +92,30 @@ export const useCartStore = create<CartState>((set) => ({
         : [...state.items, { menuItemId, name, unitPrice, quantity }];
       return withTotal(nextItems);
     });
+    void getApiClient()
+      .post<{ cart: Cart }>('/api/cart', {
+        sessionId: getSessionId(),
+        menuItemId,
+        quantity,
+      })
+      .then((res) => useCartStore.getState().reconcile(res.data.cart))
+      .catch(async (err) => {
+        logSyncFailure(err);
+        await refreshServerCart().catch(logSyncFailure);
+      });
   },
 
   removeItem(menuItemId) {
     set((state) => withTotal(state.items.filter((i) => i.menuItemId !== menuItemId)));
+    void getApiClient()
+      .delete<{ cart: Cart }>(`/api/cart/${menuItemId}`, {
+        params: { sessionId: getSessionId() },
+      })
+      .then((res) => useCartStore.getState().reconcile(res.data.cart))
+      .catch(async (err) => {
+        logSyncFailure(err);
+        await refreshServerCart().catch(logSyncFailure);
+      });
   },
 
   modifyItem(menuItemId, newQuantity) {
@@ -95,10 +129,29 @@ export const useCartStore = create<CartState>((set) => ({
         ),
       );
     });
+    void getApiClient()
+      .patch<{ cart: Cart }>('/api/cart', {
+        sessionId: getSessionId(),
+        menuItemId,
+        quantity: Math.max(0, newQuantity),
+      })
+      .then((res) => useCartStore.getState().reconcile(res.data.cart))
+      .catch(async (err) => {
+        logSyncFailure(err);
+        await refreshServerCart().catch(logSyncFailure);
+      });
   },
 
   clearCart() {
     set({ items: [], total: '0.00' });
+    void getApiClient()
+      .post<{ cart: Cart }>('/api/cart/reset', { sessionId: getSessionId() })
+      .then((res) => useCartStore.getState().reconcile(res.data.cart))
+      .catch(logSyncFailure);
+  },
+
+  async hydrateCart() {
+    await refreshServerCart().catch(logSyncFailure);
   },
 
   reconcile(cart) {

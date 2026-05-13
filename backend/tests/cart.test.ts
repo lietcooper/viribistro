@@ -22,9 +22,9 @@ describe('Cart HTTP routes', () => {
     await prisma.$disconnect();
   });
 
-  beforeEach(() => {
-    cartService.clearCart('sess-1');
-    cartService.clearCart('sess-2');
+  beforeEach(async () => {
+    await cartService.clearCart('sess-1');
+    await cartService.clearCart('sess-2');
   });
 
   it('GET /api/cart returns the cart for a session (empty by default)', async () => {

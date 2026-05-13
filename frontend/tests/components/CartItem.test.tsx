@@ -14,7 +14,22 @@ const burger = {
   quantity: 2,
 };
 
+const mockClient = {
+  patch: jest.fn(() => new Promise(() => {})),
+  delete: jest.fn(() => new Promise(() => {})),
+  get: jest.fn(() => new Promise(() => {})),
+};
+
+jest.mock('@/lib/api', () => ({
+  getApiClient: () => mockClient,
+}));
+
+jest.mock('@/lib/session', () => ({
+  getSessionId: () => 'test-session',
+}));
+
 beforeEach(() => {
+  jest.clearAllMocks();
   useCartStore.setState({ items: [{ ...burger }], total: '49.00' });
 });
 

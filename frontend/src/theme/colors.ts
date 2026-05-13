@@ -2,6 +2,11 @@
 // these up via tailwind.config.js, so tokens like `bg-bg-primary` and
 // `text-brand` resolve to the same hex values used directly here for
 // shadows, animated style props, and other places NativeWind can't reach.
+//
+// brand.alpha* tokens mirror brand.primary at various opacities, used for
+// inline accent surfaces (e.g. the chat cart-update card's tinted
+// background and border). If brand.primary ever changes, these change
+// with it — don't hand-write the rgba elsewhere.
 export const colors = {
   bg: {
     primary: '#FAF7F2',
@@ -13,6 +18,9 @@ export const colors = {
     primary: '#C8622A',
     light: '#F0A875',
     dark: '#8C3E15',
+    alpha10: 'rgba(200,98,42,0.10)',
+    alpha20: 'rgba(200,98,42,0.20)',
+    alpha30: 'rgba(200,98,42,0.30)',
   },
   text: {
     primary: '#1C1A17',
@@ -23,6 +31,10 @@ export const colors = {
   },
   border: '#E2D9CC',
   success: '#4A7C59',
+  // Soft tinted background for the "confirmed" status pill in the orders
+  // list. Picked to match the success green at low saturation, similar
+  // to the dietary-tag colors used by Tag.tsx.
+  successSoft: '#E4F0DC',
   error: '#B94040',
   overlay: 'rgba(28,26,23,0.5)',
 } as const;

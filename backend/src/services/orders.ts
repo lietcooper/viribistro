@@ -15,7 +15,8 @@ export interface SerializedOrderItem {
 
 export interface SerializedOrder {
   id: string;
-  userId: string;
+  // null for guest (unauthenticated) orders — see routes/orders.ts.
+  userId: string | null;
   status: 'pending' | 'confirmed';
   totalPrice: string;
   createdAt: string;
@@ -24,7 +25,7 @@ export interface SerializedOrder {
 
 function serializeOrder(order: {
   id: string;
-  userId: string;
+  userId: string | null;
   status: 'pending' | 'confirmed';
   totalPrice: { toString: () => string };
   createdAt: Date;
@@ -45,11 +46,9 @@ function serializeOrder(order: {
   };
 }
 
-// Per-session in-flight gate. The cart lives in process memory and we only
-// clear it AFTER the transaction commits, so two concurrent POST /api/orders
-// requests for the same sessionId would both read the same cart and create
-// two Order rows. A DB-level constraint can't help — the carts are not
-// persisted. So we serialize at the call site with a Set keyed by sessionId.
+// Per-session in-flight gate. Two concurrent POST /api/orders requests for
+// the same sessionId could both read the same persisted cart before either
+// clears it, creating duplicate orders. Serialize at the call site.
 const inFlightConfirmations: Set<string> = new Set();
 
 /**
@@ -57,7 +56,10 @@ const inFlightConfirmations: Set<string> = new Set();
  * price from the DB inside the transaction so a stale in-memory snapshot
  * can't drift past a menu price update.
  */
-export async function confirmCart(userId: string, sessionId: string): Promise<SerializedOrder> {
+export async function confirmCart(
+  userId: string | null,
+  sessionId: string,
+): Promise<SerializedOrder> {
   if (inFlightConfirmations.has(sessionId)) {
     throw new AppError(
       409,
@@ -75,8 +77,11 @@ export async function confirmCart(userId: string, sessionId: string): Promise<Se
   }
 }
 
-async function confirmCartInner(userId: string, sessionId: string): Promise<SerializedOrder> {
-  const current = cart.getCart(sessionId);
+async function confirmCartInner(
+  userId: string | null,
+  sessionId: string,
+): Promise<SerializedOrder> {
+  const current = await cart.getCart(sessionId);
   if (current.items.length === 0) {
     throw new AppError(400, 'CART_EMPTY', 'Cart is empty');
   }
@@ -122,12 +127,14 @@ async function confirmCartInner(userId: string, sessionId: string): Promise<Seri
   });
 
   // Clear cart only after the transaction succeeds.
-  cart.clearCart(sessionId);
+  await cart.clearCart(sessionId);
 
   return serializeOrder(persisted);
 }
 
 export async function listOrdersForUser(userId: string): Promise<SerializedOrder[]> {
+  // userId is required here (GET /api/orders is auth-gated). Guest orders
+  // — userId IS NULL — are intentionally never returned by this listing.
   const rows = await prisma.order.findMany({
     where: { userId },
     include: { items: true },

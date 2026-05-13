@@ -33,7 +33,7 @@ function stubWindow(props: {
 }
 
 describe('openGoogleOAuth', () => {
-  it('navigates the browser to the API base /auth/google on web', () => {
+  it('navigates the browser to the API base /auth/google on web', async () => {
     // babel-preset-expo inlines EXPO_PUBLIC_* at build time, so the
     // base URL is whatever the test runner sees at module-load. We
     // assert on the path suffix instead of an exact URL.
@@ -41,11 +41,33 @@ describe('openGoogleOAuth', () => {
     const assign = jest.fn();
     stubWindow({ assign });
 
-    openGoogleOAuth();
+    await openGoogleOAuth();
 
     expect(assign).toHaveBeenCalledTimes(1);
     const target = assign.mock.calls[0]?.[0] as string;
     expect(target).toMatch(/\/auth\/google$/);
+  });
+
+  it('throws on native when Linking.openURL rejects, surfacing a toast', async () => {
+    // The screen-level `googleRedirecting` flag depends on this throw —
+    // without it, the Google button stays stuck in its loading state
+    // forever because the screen's try/catch never trips.
+    Platform.OS = 'ios';
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Linking } = require('react-native');
+    const openURL = jest
+      .spyOn(Linking, 'openURL')
+      .mockRejectedValueOnce(new Error('no handler'));
+
+    try {
+      await expect(openGoogleOAuth()).rejects.toThrow('no handler');
+      expect(useToastStore.getState().visible).toBe(true);
+      expect(useToastStore.getState().tone).toBe('error');
+    } finally {
+      openURL.mockRestore();
+      warnSpy.mockRestore();
+    }
   });
 });
 

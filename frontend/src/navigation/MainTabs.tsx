@@ -5,7 +5,7 @@
 // the actual cart UI is a global bottom sheet mounted alongside the
 // navigator so it can open over any screen. Same for the post-checkout
 // success overlay — mounted once at the navigator level.
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
@@ -18,6 +18,7 @@ import { MenuScreen } from '@/screens/MenuScreen';
 import { OrderSuccessScreen } from '@/screens/OrderSuccessScreen';
 import { OrdersScreen } from '@/screens/OrdersScreen';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useCartStore } from '@/stores/useCartStore';
 import { useCartUiStore } from '@/stores/useCartUiStore';
 import { colors } from '@/theme/colors';
 
@@ -38,9 +39,16 @@ interface MainTabsProps {
 
 function CartTabButton() {
   const openDrawer = useCartUiStore((s) => s.openDrawer);
+  const hydrateCart = useCartStore((s) => s.hydrateCart);
+
+  const handlePress = () => {
+    openDrawer();
+    void hydrateCart();
+  };
+
   return (
     <Pressable
-      onPress={openDrawer}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel="Open cart"
       testID="open-cart"
@@ -112,6 +120,11 @@ export function MainTabs({ navRef }: MainTabsProps) {
   const successOpen = useCartUiStore((s) => s.successOpen);
   const dismissSuccess = useCartUiStore((s) => s.dismissSuccess);
   const showSuccess = useCartUiStore((s) => s.showSuccess);
+  const hydrateCart = useCartStore((s) => s.hydrateCart);
+
+  useEffect(() => {
+    void hydrateCart();
+  }, [hydrateCart]);
 
   // Memoized so it keeps a stable reference across MainTabs re-renders.
   // OrderSuccessScreen depends on `onDismiss` in its auto-dismiss

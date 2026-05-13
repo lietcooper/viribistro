@@ -6,7 +6,23 @@ import { useCartTotal } from '@/hooks/useCartTotal';
 const burger = { menuItemId: 'm-burger', name: 'Wagyu burger', unitPrice: '24.50' };
 const fries = { menuItemId: 'm-fries', name: 'Truffle fries', unitPrice: '9.00' };
 
+const mockClient = {
+  post: jest.fn(() => new Promise(() => {})),
+  patch: jest.fn(() => new Promise(() => {})),
+  delete: jest.fn(() => new Promise(() => {})),
+  get: jest.fn(() => new Promise(() => {})),
+};
+
+jest.mock('@/lib/api', () => ({
+  getApiClient: () => mockClient,
+}));
+
+jest.mock('@/lib/session', () => ({
+  getSessionId: () => 'test-session',
+}));
+
 beforeEach(() => {
+  jest.clearAllMocks();
   useCartStore.setState({ items: [], total: '0.00' });
 });
 

@@ -34,10 +34,20 @@ export function LoginScreen({ navigation }: Props) {
 
   const login = useAuthStore((s) => s.login);
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setGoogleRedirecting(true);
     setError(null);
-    openGoogleOAuth();
+    try {
+      await openGoogleOAuth();
+      // On web the page is already navigating away — this line is only
+      // reached on native after the system browser opens successfully.
+      // The "redirecting" UI stays until the user returns and the OAuth
+      // callback redirects them back into the app via deep-link.
+    } catch {
+      // openGoogleOAuth already surfaced a toast; clear the in-flight
+      // flag so the button isn't permanently stuck in its loading state.
+      setGoogleRedirecting(false);
+    }
   };
 
   const submit = async () => {

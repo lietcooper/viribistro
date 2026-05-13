@@ -57,18 +57,47 @@ model MenuItem {
   available   Boolean     @default(true)
 
   orderItems  OrderItem[]
+  cartItems   CartItem[]
 
   @@index([category])
 }
 
+model Cart {
+  id        String     @id @default(cuid())
+  sessionId String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items     CartItem[]
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  menuItemId String
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@unique([cartId, menuItemId])
+  @@index([cartId])
+  @@index([menuItemId])
+}
+
 model Order {
   id         String      @id @default(cuid())
-  userId     String
+  // Nullable so anonymous (guest) checkout is possible — the chat agent
+  // is unauthenticated and the demo flow lets a recruiter build + place
+  // an order without signing up. Guest orders simply don't show up in
+  // GET /api/orders (which lists by userId).
+  userId     String?
   status     OrderStatus @default(pending)
   totalPrice Decimal     @db.Decimal(10, 2)
   createdAt  DateTime    @default(now())
 
-  user       User        @relation(fields: [userId], references: [id])
+  user       User?       @relation(fields: [userId], references: [id])
   items      OrderItem[]
 
   @@index([userId])

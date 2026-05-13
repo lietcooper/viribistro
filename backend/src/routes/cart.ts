@@ -14,9 +14,9 @@ import {
 
 export const cartRouter: Router = Router();
 
-cartRouter.get('/', validate({ query: GetCartQuerySchema }), (req, res) => {
+cartRouter.get('/', validate({ query: GetCartQuerySchema }), async (req, res) => {
   const { sessionId } = req.query as { sessionId: string };
-  res.json({ cart: cart.getCart(sessionId) });
+  res.json({ cart: await cart.getCart(sessionId) });
 });
 
 cartRouter.post('/', validate({ body: AddCartBodySchema }), async (req, res) => {
@@ -42,10 +42,10 @@ cartRouter.patch('/', validate({ body: ModifyCartBodySchema }), async (req, res)
 cartRouter.delete(
   '/:menuItemId',
   validate({ params: RemoveCartParamsSchema, query: RemoveCartQuerySchema }),
-  (req, res) => {
+  async (req, res) => {
     const { menuItemId } = req.params as { menuItemId: string };
     const { sessionId } = req.query as { sessionId: string };
-    const next = cart.removeItem(sessionId, menuItemId);
+    const next = await cart.removeItem(sessionId, menuItemId);
     res.json({ cart: next });
   },
 );
@@ -59,9 +59,9 @@ cartRouter.delete(
 cartRouter.post(
   '/reset',
   validate({ body: ResetCartBodySchema }),
-  (req, res) => {
+  async (req, res) => {
     const { sessionId } = req.body as { sessionId: string };
-    const next = cart.clearCart(sessionId);
+    const next = await cart.clearCart(sessionId);
     res.json({ cart: next });
   },
 );

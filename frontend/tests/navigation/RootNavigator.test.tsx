@@ -23,17 +23,25 @@ jest.mock('@/navigation/MainTabs', () => ({
 }));
 
 // Skip NavigationContainer wiring — it pulls in screen registration we
-// don't need for this gating-logic test.
-jest.mock('@react-navigation/native', () => ({
-  NavigationContainer: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
-  useNavigationContainerRef: () => ({
-    isReady: () => false,
-    navigate: jest.fn(),
-    current: null,
-  }),
-}));
+// don't need for this gating-logic test. NavigationContainer accepts a
+// ref in real react-navigation, so the mock uses forwardRef to silence
+// the "function components cannot be given refs" warning when
+// RootNavigator passes its navRef.
+jest.mock('@react-navigation/native', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require('react');
+  return {
+    NavigationContainer: React.forwardRef(
+      ({ children }: { children: React.ReactNode }, _ref: unknown) =>
+        React.createElement(React.Fragment, null, children),
+    ),
+    useNavigationContainerRef: () => ({
+      isReady: () => false,
+      navigate: jest.fn(),
+      current: null,
+    }),
+  };
+});
 
 // Skip the bootstrap roundtrip; the navigator should treat us as
 // "ready" immediately so the gating logic is what we're asserting on.

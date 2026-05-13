@@ -27,8 +27,9 @@ const EnvSchema = z
     // production when an operator forgot the var.
     GOOGLE_CALLBACK_URL: z.string().url().optional(),
 
-    // Required so /api/chat can boot. Tests load a dummy value via .env.test.
-    ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
+    // Optional at boot so non-chat routes still work without AI configured.
+    // /api/chat returns 503 when this is blank.
+    ANTHROPIC_API_KEY: z.string().default(''),
     // Configurable so newer Sonnet snapshots are swappable without a code
     // change. NOTE: CLAUDE.md still lists `claude-sonnet-4-20250514`, which
     // is deprecated and retires 2026-06-15 — keep this default on the
@@ -41,6 +42,7 @@ const EnvSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     FRONTEND_URL: z.string().url(),
+    E2E_FAKE_AI: z.coerce.boolean().default(false),
   })
   .superRefine((env, ctx) => {
     // OAuth is opt-in: if a client id is configured, the callback URL

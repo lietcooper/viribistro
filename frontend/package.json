@@ -9,6 +9,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web",
+    "build:web": "expo export --platform web",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
     "test": "jest",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit"
@@ -16,7 +20,9 @@
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.2.3",
     "@expo-google-fonts/playfair-display": "^0.2.3",
-    "@expo/vector-icons": "^14.0.4",
+    "@expo/metro-runtime": "~4.0.1",
+    "@expo/vector-icons": "~14.0.4",
+    "@react-native-community/cli-server-api": "^15.0.1",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/native-stack": "^7.2.0",
@@ -25,10 +31,10 @@
     "expo-font": "~13.0.2",
     "expo-image": "~2.0.4",
     "expo-status-bar": "~2.0.0",
-    "nativewind": "^4.1.23",
+    "nativewind": "4.1.23",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-native": "0.76.5",
+    "react-native": "0.76.9",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-reanimated": "~3.16.5",
     "react-native-safe-area-context": "4.12.0",
@@ -39,6 +45,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@playwright/test": "^1.56.1",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.0.1",
     "@types/jest": "^29.5.14",
@@ -62,7 +69,8 @@
     },
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/.expo/"
+      "/.expo/",
+      "<rootDir>/e2e/"
     ]
   }
 }

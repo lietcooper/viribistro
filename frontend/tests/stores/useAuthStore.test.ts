@@ -89,6 +89,9 @@ describe('useAuthStore.logout', () => {
   });
 
   it('clears state even when the logout request fails', async () => {
+    // Silence the production console.warn emitted on the failure path —
+    // we still assert below that it fired with the expected payload.
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     useAuthStore.setState({
       user: sampleAuth.user,
       token: 'old',
@@ -97,10 +100,18 @@ describe('useAuthStore.logout', () => {
     });
     mockClient.post.mockRejectedValueOnce(new Error('network down'));
 
-    await useAuthStore.getState().logout();
+    try {
+      await useAuthStore.getState().logout();
 
-    expect(useAuthStore.getState().token).toBeNull();
-    expect(useAuthStore.getState().user).toBeNull();
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().user).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[auth] logout network call failed:',
+        expect.any(Error),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 
@@ -120,6 +131,7 @@ describe('useAuthStore.bootstrap', () => {
   });
 
   it('clears state on a failed refresh (no thrown error to the caller)', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     useAuthStore.setState({
       user: sampleAuth.user,
       token: 'stale',
@@ -128,9 +140,13 @@ describe('useAuthStore.bootstrap', () => {
     });
     mockClient.post.mockRejectedValueOnce({ response: { status: 401 } });
 
-    await expect(useAuthStore.getState().bootstrap()).resolves.toBeUndefined();
+    try {
+      await expect(useAuthStore.getState().bootstrap()).resolves.toBeUndefined();
 
-    expect(useAuthStore.getState().token).toBeNull();
-    expect(useAuthStore.getState().status).toBe('idle');
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().status).toBe('idle');
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

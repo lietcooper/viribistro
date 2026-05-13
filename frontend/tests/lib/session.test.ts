@@ -18,6 +18,33 @@ describe('getSessionId', () => {
     expect(a).not.toBe(b);
   });
 
+  it('persists across module cache resets', () => {
+    const store = new Map<string, string>();
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => store.set(key, value),
+        removeItem: (key: string) => store.delete(key),
+      },
+    });
+    try {
+      _resetSessionForTests();
+      const a = getSessionId();
+      jest.isolateModules(() => {
+        const { getSessionId: getFreshSessionId } = require('@/lib/session');
+        expect(getFreshSessionId()).toBe(a);
+      });
+    } finally {
+      if (original) {
+        Object.defineProperty(globalThis, 'localStorage', original);
+      } else {
+        delete (globalThis as { localStorage?: Storage }).localStorage;
+      }
+    }
+  });
+
   it('prefers crypto.randomUUID when present', () => {
     const cryptoLike = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
     const spy = cryptoLike?.randomUUID

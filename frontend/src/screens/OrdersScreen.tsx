@@ -2,7 +2,7 @@
 // backend) in parallel with `/api/menu`, then thread menu item names
 // into each order row — the orders endpoint only returns ids + prices.
 // Tap a row to expand and see the full item breakdown.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -110,7 +110,9 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
           <View
             style={{
               backgroundColor:
-                order.status === 'confirmed' ? '#E4F0DC' : colors.bg.secondary,
+                order.status === 'confirmed'
+                  ? colors.successSoft
+                  : colors.bg.secondary,
               paddingHorizontal: 10,
               paddingVertical: 2,
               borderRadius: 999,
@@ -189,17 +191,32 @@ export function OrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Tracks whether the component is still mounted when an async load
+  // resolves. Without this, a 401-triggered auth-store clear unmounts
+  // this screen (RootNavigator swaps to AuthStack) while load() is still
+  // in flight, and the trailing setError / setLoading log a React warning
+  // and waste a render.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const load = useCallback(async () => {
-    setError(null);
+    if (mountedRef.current) setError(null);
     try {
       const client = getApiClient();
       const [ordersRes, menuRes] = await Promise.all([
         client.get<OrdersResponse>('/api/orders'),
         client.get<MenuResponse>('/api/menu'),
       ]);
+      if (!mountedRef.current) return;
       setOrders(ordersRes.data.orders);
       setMenu(menuRes.data.items);
     } catch (err) {
+      if (!mountedRef.current) return;
       const e = err as { response?: { status?: number } };
       if (e.response?.status === 401) {
         setError('Sign in to see your past orders.');
@@ -212,15 +229,22 @@ export function OrdersScreen() {
   useEffect(() => {
     void (async () => {
       await load();
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     })();
   }, [load]);
 
   // Refetch whenever the Orders tab regains focus (e.g. after the
-  // post-checkout success overlay navigates here). Without this a fresh
-  // order only appears after a manual pull-to-refresh.
+  // post-checkout success overlay navigates here). The initial mount's
+  // useEffect already fetches on first render — skip the very first focus
+  // event so we don't issue two parallel /api/orders calls and race their
+  // setState writes.
+  const skipFirstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
+      if (skipFirstFocus.current) {
+        skipFirstFocus.current = false;
+        return;
+      }
       void load();
     }, [load]),
   );

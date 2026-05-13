@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "migrate:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
@@ -41,7 +42,7 @@
     "pino": "9.5.0",
     "pino-http": "10.3.0",
     "prisma": "5.22.0",
-    "zod": "3.23.8"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/bcrypt": "5.0.2",

@@ -36,14 +36,22 @@ const menuItems = [
   },
 ];
 
-const mockClient = { get: jest.fn() };
+const mockClient = {
+  get: jest.fn(),
+  post: jest.fn(() => new Promise(() => {})),
+};
 
 jest.mock('@/lib/api', () => ({
   getApiClient: () => mockClient,
 }));
 
+jest.mock('@/lib/session', () => ({
+  getSessionId: () => 'test-session',
+}));
+
 beforeEach(() => {
   mockClient.get.mockReset();
+  mockClient.post.mockClear();
   mockClient.get.mockResolvedValue({ data: { items: menuItems } });
   useCartStore.setState({ items: [], total: '0' });
 });
@@ -120,11 +128,23 @@ describe('MenuScreen', () => {
   });
 
   it('shows a friendly error if /api/menu fails', async () => {
+    // The production catch block console.errors before rendering the
+    // friendly message — silence it here so the test output stays clean
+    // while still asserting the user-facing error path.
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockClient.get.mockReset();
     mockClient.get.mockRejectedValueOnce(new Error('network down'));
-    render(<MenuScreen />);
-    await waitFor(() => {
-      expect(screen.getByText('Could not load the menu.')).toBeTruthy();
-    });
+    try {
+      render(<MenuScreen />);
+      await waitFor(() => {
+        expect(screen.getByText('Could not load the menu.')).toBeTruthy();
+      });
+      expect(errSpy).toHaveBeenCalledWith(
+        '[MenuScreen] fetch failed:',
+        expect.any(Error),
+      );
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });

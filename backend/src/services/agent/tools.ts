@@ -230,7 +230,7 @@ export async function dispatchTool(
         const { itemId } = input as z.infer<
           (typeof toolInputZod)['remove_from_cart']
         >;
-        const next = cart.removeItem(ctx.sessionId, itemId);
+        const next = await cart.removeItem(ctx.sessionId, itemId);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'modify_item': {
@@ -241,7 +241,7 @@ export async function dispatchTool(
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'get_cart': {
-        const snap = cart.getCart(ctx.sessionId);
+        const snap = await cart.getCart(ctx.sessionId);
         return resultOk(block.id, name, false, { cart: snap });
       }
       case 'get_menu': {

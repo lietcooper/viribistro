@@ -21,8 +21,8 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
     <View
       testID="cart-update-card"
       style={{
-        backgroundColor: 'rgba(200,98,42,0.10)',
-        borderColor: 'rgba(200,98,42,0.30)',
+        backgroundColor: colors.brand.alpha10,
+        borderColor: colors.brand.alpha30,
         borderWidth: 1,
         borderRadius: 14,
         paddingHorizontal: 12,
@@ -64,7 +64,7 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
           marginTop: 4,
           paddingTop: 6,
           borderTopWidth: 1,
-          borderTopColor: 'rgba(200,98,42,0.20)',
+          borderTopColor: colors.brand.alpha20,
         }}
       >
         <Text style={[type.label, { color: colors.text.secondary }]}>Total</Text>

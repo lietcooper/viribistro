@@ -12,6 +12,18 @@ const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Bistro API listening');
 });
 
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.error(
+      { port: env.PORT },
+      `Port ${env.PORT} is already in use. Stop the other process or set PORT to another value.`,
+    );
+    process.exit(1);
+  }
+  logger.error({ err }, 'Server failed to start');
+  process.exit(1);
+});
+
 // Graceful shutdown — important on Railway where SIGTERM is sent on redeploy.
 function shutdown(signal: NodeJS.Signals): void {
   logger.info({ signal }, 'Shutting down');

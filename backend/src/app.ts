@@ -19,6 +19,7 @@ import { menuRouter } from './routes/menu.js';
 import { cartRouter } from './routes/cart.js';
 import { ordersRouter } from './routes/orders.js';
 import { chatRouter } from './routes/chat.js';
+import { e2eRouter } from './routes/e2e.js';
 
 export function createApp(): Express {
   const app = express();
@@ -49,6 +50,9 @@ export function createApp(): Express {
   app.use('/api/cart', cartRouter);
   app.use('/api/orders', ordersRouter);
   app.use('/api/chat', chatRouter);
+  if (env.E2E_FAKE_AI) {
+    app.use('/__e2e', e2eRouter);
+  }
 
   // Must be the LAST middleware mounted.
   app.use(errorHandler);

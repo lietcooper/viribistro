@@ -1,9 +1,16 @@
-// Per-launch chat / cart session identifier. The backend keys carts and
-// conversations by this id. It is regenerated each time the app boots —
-// closing the tab abandons the in-progress cart, which is fine for a
-// public demo. A logged-in user's *orders* are still persisted in the
-// DB by user id, independent of the session.
+// Chat / cart session identifier. The backend keys carts and conversations
+// by this id, so web reloads must keep it stable.
 let cached: string | null = null;
+const STORAGE_KEY = 'viridien.sessionId';
+
+function getStorage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+    return typeof globalThis.localStorage !== 'undefined' ? globalThis.localStorage : null;
+  } catch {
+    return null;
+  }
+}
 
 function makeId(): string {
   // Prefer the platform's UUID generator when present.
@@ -15,10 +22,21 @@ function makeId(): string {
 }
 
 export function getSessionId(): string {
-  if (!cached) cached = makeId();
+  if (cached) return cached;
+
+  const storage = getStorage();
+  const stored = storage?.getItem(STORAGE_KEY);
+  if (stored) {
+    cached = stored;
+    return cached;
+  }
+
+  cached = makeId();
+  storage?.setItem(STORAGE_KEY, cached);
   return cached;
 }
 
 export function _resetSessionForTests(): void {
   cached = null;
+  getStorage()?.removeItem(STORAGE_KEY);
 }

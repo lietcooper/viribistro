@@ -33,8 +33,8 @@ describe('dispatchTool', () => {
     await prisma.$disconnect();
   });
 
-  beforeEach(() => {
-    cartService.clearCart(SESSION);
+  beforeEach(async () => {
+    await cartService.clearCart(SESSION);
   });
 
   it('add_to_cart succeeds and returns a tool_result with cart payload', async () => {
@@ -80,7 +80,7 @@ describe('dispatchTool', () => {
     const parsed = JSON.parse(res.content) as { error: string };
     expect(parsed.error).toBe('INVALID_TOOL_INPUT');
     // The cart was not touched.
-    expect(cartService.getCart(SESSION).items).toEqual([]);
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
   });
 
   it('passes cart-service AppErrors back as recoverable tool_result errors', async () => {
@@ -154,7 +154,7 @@ describe('dispatchTool', () => {
     expect(res.type).toBe('tool_result');
     if (res.type !== 'tool_result') throw new Error('unreachable');
     expect(res.mutated).toBe(true);
-    expect(cartService.getCart(SESSION).items).toEqual([]);
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
   });
 
   it('remove_from_cart removes an item by id', async () => {
@@ -166,6 +166,6 @@ describe('dispatchTool', () => {
     expect(res.type).toBe('tool_result');
     if (res.type !== 'tool_result') throw new Error('unreachable');
     expect(res.mutated).toBe(true);
-    expect(cartService.getCart(SESSION).items).toEqual([]);
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
   });
 });

@@ -42,11 +42,18 @@ describe('useBootstrapAuth', () => {
   });
 
   it('flips ready=true even when /auth/refresh rejects', async () => {
+    // Silence the production `[auth] bootstrap failed:` warn — the
+    // failure is the test's setup, not a real issue.
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     mockClient.post.mockRejectedValueOnce(new Error('401'));
 
-    const { result } = renderHook(() => useBootstrapAuth());
+    try {
+      const { result } = renderHook(() => useBootstrapAuth());
 
-    await waitFor(() => expect(result.current.ready).toBe(true));
-    expect(useAuthStore.getState().token).toBeNull();
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      expect(useAuthStore.getState().token).toBeNull();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

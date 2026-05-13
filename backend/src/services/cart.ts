@@ -1,11 +1,6 @@
-// In-memory cart store, keyed by sessionId. The AI agent's tool dispatcher
-// will call these same pure functions, so REST and chat operations converge
-// on a single source of truth. State is *intentionally* not persisted —
-// only the final Order rows go to the DB (see services/orders.ts).
-//
-// Decimal math is done with strings so we don't lose precision: every
-// MenuItem.price is stored as a Prisma Decimal and we keep prices as their
-// canonical toString() value here.
+// Persistent cart store, keyed by sessionId. REST and chat tools share this
+// service so every cart path converges on the same Postgres-backed state.
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/AppError.js';
 
@@ -13,43 +8,28 @@ export interface CartItem {
   menuItemId: string;
   name: string;
   quantity: number;
-  unitPrice: string; // serialized Decimal
+  unitPrice: string;
 }
 
 export interface Cart {
   items: CartItem[];
-  total: string; // serialized Decimal
+  total: string;
 }
 
-// Sessions → carts. Reset between tests via clearCart(); never serialized.
-const carts: Map<string, CartItem[]> = new Map();
+type DbCartItem = {
+  menuItemId: string;
+  quantity: number;
+  unitPrice: { toString: () => string };
+  menuItem: { name: string };
+};
 
-/**
- * Normalize a Prisma Decimal (or anything with toString()) to a canonical
- * two-decimal price string. The schema is Decimal(10,2), so the column
- * *should* always come back like "26.00" — but a future migration or an
- * imported dataset could break that assumption. Without this, recomputeTotal
- * would silently truncate (slice(0,2)) anything past two decimals.
- *
- * Use Number().toFixed(2) which round-half-to-even is fine for our domain
- * (prices are user-visible and never long-tail). Numbers ≤ ~9 trillion stay
- * exact at IEEE 754 precision, which is way above any plausible menu price.
- */
 export function normalizePrice(price: { toString: () => string }): string {
   return Number(price.toString()).toFixed(2);
 }
 
-function readableItems(sessionId: string): CartItem[] {
-  return carts.get(sessionId) ?? [];
-}
-
-// Use 2-decimal rounding consistent with Postgres Decimal(10, 2). Always
-// emit two fractional digits so the API contract and system-prompt
-// rendering match the DB shape ("26.00" not "26").
 function recomputeTotal(items: CartItem[]): string {
   let totalCents = 0n;
   for (const item of items) {
-    // Split price into integer + fractional parts in cents.
     const [intPart, fracPart = ''] = item.unitPrice.split('.');
     const cents = BigInt(intPart!) * 100n + BigInt((fracPart + '00').slice(0, 2));
     totalCents += cents * BigInt(item.quantity);
@@ -59,21 +39,46 @@ function recomputeTotal(items: CartItem[]): string {
   return `${whole.toString()}.${frac.toString().padStart(2, '0')}`;
 }
 
-function snapshot(sessionId: string): Cart {
-  const items = readableItems(sessionId);
-  return { items: [...items], total: recomputeTotal(items) };
+function serialize(items: DbCartItem[]): Cart {
+  const serialized = items.map((item) => ({
+    menuItemId: item.menuItemId,
+    name: item.menuItem.name,
+    quantity: item.quantity,
+    unitPrice: normalizePrice(item.unitPrice),
+  }));
+  return { items: serialized, total: recomputeTotal(serialized) };
 }
 
-export function getCart(sessionId: string): Cart {
-  return snapshot(sessionId);
+async function readItems(sessionId: string): Promise<DbCartItem[]> {
+  const row = await prisma.cart.findUnique({
+    where: { sessionId },
+    select: {
+      items: {
+        orderBy: { id: 'asc' },
+        select: {
+          menuItemId: true,
+          quantity: true,
+          unitPrice: true,
+          menuItem: { select: { name: true } },
+        },
+      },
+    },
+  });
+  return row?.items ?? [];
 }
 
-export function clearCart(sessionId: string): Cart {
-  carts.delete(sessionId);
-  return snapshot(sessionId);
+async function ensureCart(sessionId: string): Promise<{ id: string }> {
+  return prisma.cart.upsert({
+    where: { sessionId },
+    update: {},
+    create: { sessionId },
+    select: { id: true },
+  });
 }
 
-async function lookupMenuItem(menuItemId: string): Promise<{ id: string; name: string; price: { toString: () => string }; available: boolean }> {
+async function lookupMenuItem(
+  menuItemId: string,
+): Promise<{ id: string; name: string; price: Prisma.Decimal; available: boolean }> {
   const item = await prisma.menuItem.findUnique({
     where: { id: menuItemId },
     select: { id: true, name: true, price: true, available: true },
@@ -87,6 +92,15 @@ async function lookupMenuItem(menuItemId: string): Promise<{ id: string; name: s
   return item;
 }
 
+export async function getCart(sessionId: string): Promise<Cart> {
+  return serialize(await readItems(sessionId));
+}
+
+export async function clearCart(sessionId: string): Promise<Cart> {
+  await prisma.cart.deleteMany({ where: { sessionId } });
+  return { items: [], total: '0.00' };
+}
+
 export async function addItem(
   sessionId: string,
   menuItemId: string,
@@ -96,25 +110,20 @@ export async function addItem(
     throw new AppError(400, 'INVALID_QUANTITY', 'Quantity must be a positive integer');
   }
   const item = await lookupMenuItem(menuItemId);
-  // Shallow-copy each entry so we never mutate the live Map entry mid-write
-  // (the snapshot returned by getCart() handed callers an array containing
-  // references to these objects; mutating them in place would silently change
-  // the caller's "frozen" view). carts.set is then the single write path.
-  const next = readableItems(sessionId).map((i) => ({ ...i }));
-  const found = next.find((i) => i.menuItemId === menuItemId);
-  if (found) {
-    found.quantity += quantity;
-  } else {
-    next.push({
+  const cart = await ensureCart(sessionId);
+
+  await prisma.cartItem.upsert({
+    where: { cartId_menuItemId: { cartId: cart.id, menuItemId } },
+    update: { quantity: { increment: quantity }, unitPrice: item.price },
+    create: {
+      cartId: cart.id,
       menuItemId: item.id,
-      name: item.name,
       quantity,
-      // Normalize at the boundary — see normalizePrice() rationale.
-      unitPrice: normalizePrice(item.price),
-    });
-  }
-  carts.set(sessionId, next);
-  return snapshot(sessionId);
+      unitPrice: item.price,
+    },
+  });
+
+  return getCart(sessionId);
 }
 
 export async function modifyItem(
@@ -125,33 +134,46 @@ export async function modifyItem(
   if (!Number.isInteger(newQuantity) || newQuantity < 0) {
     throw new AppError(400, 'INVALID_QUANTITY', 'Quantity must be a non-negative integer');
   }
-  // Shallow-copy so we don't mutate the live Map entries (see addItem).
-  const next = readableItems(sessionId).map((i) => ({ ...i }));
-  const idx = next.findIndex((i) => i.menuItemId === menuItemId);
-  if (idx < 0) {
-    // If the item isn't in the cart, treat modify-to-positive as add.
-    if (newQuantity > 0) {
-      await addItem(sessionId, menuItemId, newQuantity);
-      return snapshot(sessionId);
-    }
-    // newQuantity is 0 on a non-existent item — no-op.
-    return snapshot(sessionId);
-  }
+
+  const existingCart = await prisma.cart.findUnique({
+    where: { sessionId },
+    select: { id: true },
+  });
+
   if (newQuantity === 0) {
-    next.splice(idx, 1);
-  } else {
-    next[idx]!.quantity = newQuantity;
+    if (existingCart) {
+      await prisma.cartItem.deleteMany({
+        where: { cartId: existingCart.id, menuItemId },
+      });
+    }
+    return getCart(sessionId);
   }
-  carts.set(sessionId, next);
-  return snapshot(sessionId);
+
+  const item = await lookupMenuItem(menuItemId);
+  const cart = existingCart ?? (await ensureCart(sessionId));
+  await prisma.cartItem.upsert({
+    where: { cartId_menuItemId: { cartId: cart.id, menuItemId } },
+    update: { quantity: newQuantity, unitPrice: item.price },
+    create: {
+      cartId: cart.id,
+      menuItemId: item.id,
+      quantity: newQuantity,
+      unitPrice: item.price,
+    },
+  });
+
+  return getCart(sessionId);
 }
 
-export function removeItem(sessionId: string, menuItemId: string): Cart {
-  const items = readableItems(sessionId).filter((i) => i.menuItemId !== menuItemId);
-  if (items.length === 0) {
-    carts.delete(sessionId);
-  } else {
-    carts.set(sessionId, items);
-  }
-  return snapshot(sessionId);
+export async function removeItem(sessionId: string, menuItemId: string): Promise<Cart> {
+  const existingCart = await prisma.cart.findUnique({
+    where: { sessionId },
+    select: { id: true },
+  });
+  if (!existingCart) return { items: [], total: '0.00' };
+
+  await prisma.cartItem.deleteMany({
+    where: { cartId: existingCart.id, menuItemId },
+  });
+  return getCart(sessionId);
 }

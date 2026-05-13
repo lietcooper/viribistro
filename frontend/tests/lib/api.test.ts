@@ -135,6 +135,9 @@ describe('createApiClient — auth refresh', () => {
   });
 
   it('clears the auth store and rejects when /auth/refresh itself fails with 401', async () => {
+    // Silence the production `[api] refresh failed:` warn for this
+    // deliberate failure case.
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const scripted = makeScriptedAdapter();
     const client = createApiClient({ baseURL: 'http://api.test' });
     attachAdapter(client, scripted.adapter);
@@ -144,9 +147,13 @@ describe('createApiClient — auth refresh', () => {
       { status: 401, data: { code: 'INVALID_REFRESH_TOKEN' } },
     );
 
-    await expect(client.get('/api/orders')).rejects.toBeDefined();
-    expect(useAuthStore.getState().token).toBeNull();
-    expect(useAuthStore.getState().user).toBeNull();
+    try {
+      await expect(client.get('/api/orders')).rejects.toBeDefined();
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().user).toBeNull();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('does not retry a 401 from /auth/refresh itself (prevents infinite loop)', async () => {

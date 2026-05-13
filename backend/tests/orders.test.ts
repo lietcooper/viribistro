@@ -35,19 +35,37 @@ describe('Orders routes', () => {
   });
 
   beforeEach(async () => {
-    cartService.clearCart('order-sess');
+    await cartService.clearCart('order-sess');
     // Wipe orders + users so register/login can reuse the same email.
     await prisma.order.deleteMany();
     await prisma.user.deleteMany();
   });
 
   describe('POST /api/orders', () => {
-    it('returns 401 when unauthenticated', async () => {
+    it('allows guest checkout when a cart exists', async () => {
+      await cartService.addItem('order-sess', burgerId, 1);
       const app = await buildTestApp();
       const res = await request(app)
         .post('/api/orders')
         .send({ sessionId: 'order-sess' });
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(201);
+      expect(res.body.order.userId).toBeNull();
+      // Cart is cleared after a successful guest checkout, same as authed.
+      expect((await cartService.getCart('order-sess')).items).toEqual([]);
+    });
+
+    it('falls through to a guest order when the Bearer token is invalid', async () => {
+      // A malformed / expired Authorization header must NOT 401 the
+      // request — anonymous checkout should still succeed. Guards
+      // against a regression where requireAuth gets reintroduced.
+      await cartService.addItem('order-sess', burgerId, 1);
+      const app = await buildTestApp();
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', 'Bearer not-a-real-token')
+        .send({ sessionId: 'order-sess' });
+      expect(res.status).toBe(201);
+      expect(res.body.order.userId).toBeNull();
     });
 
     it('returns 400 when the cart is empty', async () => {
@@ -81,7 +99,7 @@ describe('Orders routes', () => {
       expect(totals).toContain(1);
 
       // Cart cleared.
-      expect(cartService.getCart('order-sess').items).toEqual([]);
+      expect((await cartService.getCart('order-sess')).items).toEqual([]);
 
       // DB row exists.
       const dbOrder = await prisma.order.findUnique({

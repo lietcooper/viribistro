@@ -16,7 +16,21 @@ const item: MenuItem = {
   available: true,
 };
 
+const mockClient = {
+  post: jest.fn(() => new Promise(() => {})),
+  get: jest.fn(() => new Promise(() => {})),
+};
+
+jest.mock('@/lib/api', () => ({
+  getApiClient: () => mockClient,
+}));
+
+jest.mock('@/lib/session', () => ({
+  getSessionId: () => 'test-session',
+}));
+
 beforeEach(() => {
+  jest.clearAllMocks();
   useCartStore.setState({ items: [], total: '0.00' });
 });
 

@@ -1,12 +1,13 @@
 // A single menu card in the grid. Tapping the body opens the detail
 // modal; tapping the round + button does an inline add (scale-pop
 // animation, then `useCartStore.addItem`).
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withSequence,
@@ -33,34 +34,49 @@ const BLUR_PLACEHOLDER =
 
 export function MenuItemCard({ item, index, onPress }: MenuItemCardProps) {
   const addItem = useCartStore((s) => s.addItem);
+  const reduced = useReducedMotion();
 
-  // Card entrance — staggered slide + fade. Wrapped in useEffect so the
-  // animation only fires on mount (and when `index` changes), not on
-  // every parent re-render — otherwise the cards visibly snap back to
-  // their initial offset whenever something above re-renders.
-  const enterY = useSharedValue(16);
-  const enterOpacity = useSharedValue(0);
+  // Card entrance — staggered slide + fade. Gate to the first render
+  // only via a ref: `index` is in the dependency array of any version
+  // that listed it, so filter/search reorders would otherwise re-play
+  // the stagger on every category switch. Honor reduce-motion: skip
+  // the spring entirely and start at rest.
+  const enterY = useSharedValue(reduced ? 0 : 16);
+  const enterOpacity = useSharedValue(reduced ? 1 : 0);
+  const hasAnimated = useRef(false);
   useEffect(() => {
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+    if (reduced) {
+      enterY.value = 0;
+      enterOpacity.value = 1;
+      return;
+    }
     enterY.value = withDelay(index * 60, withSpring(0, springs.snappy));
     enterOpacity.value = withDelay(
       index * 60,
       withSpring(1, { ...springs.snappy, damping: 25 }),
     );
-  }, [index, enterY, enterOpacity]);
+    // We intentionally do not depend on `index` (would re-trigger on
+    // filter/search reorders) or `reduced` (only meaningful at mount).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const enterStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: enterY.value }],
     opacity: enterOpacity.value,
   }));
 
-  // Add button scale-pop on press.
+  // Add button scale-pop on press. Skip the bounce under reduce-motion.
   const addScale = useSharedValue(1);
   const addStyle = useAnimatedStyle(() => ({ transform: [{ scale: addScale.value }] }));
 
   const handleAdd = () => {
-    addScale.value = withSequence(
-      withSpring(0.88, springs.snappy),
-      withSpring(1.0, springs.bounce),
-    );
+    if (!reduced) {
+      addScale.value = withSequence(
+        withSpring(0.88, springs.snappy),
+        withSpring(1.0, springs.bounce),
+      );
+    }
     addItem({ menuItemId: item.id, name: item.name, unitPrice: item.price }, 1);
   };
 

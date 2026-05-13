@@ -2,7 +2,7 @@
 // when the agent is mid-thought, and a docked input at the bottom. When
 // the conversation is empty we surface a small set of suggested prompts
 // so the user always has a clear way in.
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -27,16 +27,10 @@ export function ChatScreen() {
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
-  // Keep the latest message visible without yanking the user away from
-  // scrollback when they're reading older history. This biases to the
-  // common case: new messages while pinned to bottom.
-  useEffect(() => {
-    if (messages.length === 0 && !isTyping) return;
-    const t = setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    }, 60);
-    return () => clearTimeout(t);
-  }, [messages.length, isTyping]);
+  // Note: we used to also scrollToEnd from a useEffect on messages.length /
+  // isTyping with a 60ms timeout. That raced with the FlatList's
+  // onContentSizeChange below and caused jank on slower devices. The
+  // onContentSizeChange path fires after layout, which is what we want.
 
   const renderItem = ({ item }: { item: ChatMessage }) => (
     <ChatBubble message={item} />

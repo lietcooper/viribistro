@@ -8,7 +8,7 @@
 //     to show the success screen via the `onOrderPlaced` callback.
 //   - On failure: surface an inline error row + a toast so the user
 //     never sees a silent dead-end.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Pressable,
@@ -59,6 +59,14 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   const translateY = useSharedValue(sheetHeight);
   const overlayOpacity = useSharedValue(0);
 
+  // Capture the latest sheetHeight in a ref so the animation effect can
+  // read it without listing `sheetHeight` as a dependency. On the web,
+  // useWindowDimensions emits a new height on every browser resize,
+  // which would otherwise re-run the spring animation even when the
+  // drawer is closed (visible flicker / re-trigger).
+  const sheetHeightRef = useRef(sheetHeight);
+  sheetHeightRef.current = sheetHeight;
+
   useEffect(() => {
     // Clear stale checkout errors whenever the drawer opens — a fresh
     // session shouldn't start with last attempt's failure on screen.
@@ -66,17 +74,18 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   }, [open]);
 
   useEffect(() => {
+    const h = sheetHeightRef.current;
     if (reducedMotion) {
-      translateY.value = open ? 0 : sheetHeight;
+      translateY.value = open ? 0 : h;
       overlayOpacity.value = open ? 1 : 0;
     } else if (open) {
       translateY.value = withSpring(0, springs.drawer);
       overlayOpacity.value = withTiming(1, { duration: 220 });
     } else {
-      translateY.value = withSpring(sheetHeight, springs.drawer);
+      translateY.value = withSpring(h, springs.drawer);
       overlayOpacity.value = withTiming(0, { duration: 180 });
     }
-  }, [open, reducedMotion, sheetHeight, translateY, overlayOpacity]);
+  }, [open, reducedMotion, translateY, overlayOpacity]);
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],

@@ -4,6 +4,13 @@
 // MessageParam content (string OR ContentBlockParam[]) verbatim — replaying
 // history on the next turn is then a 1:1 map from rows to MessageParam.
 //
+// Ordering: `createdAt` is millisecond-granular, so several rows written in
+// the same appendTurn() can share a timestamp. We therefore stamp every row
+// with a monotonically-increasing `sequence` (per conversation) inside the
+// transaction, and read back ordered by [createdAt asc, sequence asc]. This
+// is load-bearing for the Anthropic protocol: a `tool_result` MUST replay
+// immediately after the matching `tool_use`.
+//
 // Concurrency: all writes for a single turn happen inside one $transaction
 // so a crash mid-turn never leaves dangling messages. The Conversation row
 // is upserted by sessionId (unique index in the schema).
@@ -14,23 +21,25 @@ import { prisma } from '../../lib/prisma.js';
 /**
  * Load all messages for this sessionId in chronological order, shaped as
  * Anthropic MessageParams so they can be threaded back into the loop
- * runner's `priorMessages` argument without any reshaping.
+ * runner's `priorMessages` argument without any reshaping. One round-trip
+ * via include.
  */
 export async function loadHistory(
   sessionId: string,
 ): Promise<Anthropic.MessageParam[]> {
   const conv = await prisma.conversation.findUnique({
     where: { sessionId },
-    select: { id: true },
+    select: {
+      messages: {
+        // `sequence` is the deterministic tiebreaker for rows that share a
+        // millisecond timestamp (multiple inserts inside one transaction).
+        orderBy: [{ createdAt: 'asc' }, { sequence: 'asc' }],
+        select: { role: true, content: true },
+      },
+    },
   });
   if (!conv) return [];
-
-  const rows = await prisma.message.findMany({
-    where: { conversationId: conv.id },
-    orderBy: { createdAt: 'asc' },
-    select: { role: true, content: true },
-  });
-  return rows.map(rowToMessageParam);
+  return conv.messages.map(rowToMessageParam);
 }
 
 /**
@@ -55,11 +64,20 @@ export async function appendTurn(
     });
 
     if (messages.length > 0) {
+      // Read the current max sequence so we keep numbering monotonic across
+      // turns. aggregate inside the same transaction is consistent.
+      const agg = await tx.message.aggregate({
+        where: { conversationId: conv.id },
+        _max: { sequence: true },
+      });
+      const startSeq = (agg._max.sequence ?? -1) + 1;
+
       await tx.message.createMany({
-        data: messages.map((m) => ({
+        data: messages.map((m, idx) => ({
           conversationId: conv.id,
           role: messageRoleForDb(m),
           content: contentToJson(m.content),
+          sequence: startSeq + idx,
         })),
       });
     }

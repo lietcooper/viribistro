@@ -107,10 +107,18 @@ model Message {
   // JSON so we can persist Anthropic tool_use / tool_result content blocks
   // alongside plain text user messages — see docs/plans/ai-agent.md.
   content        Json
+  // Monotonically increasing per conversation. createdAt is millisecond-granular,
+  // so a single appendTurn() that inserts user → assistant(tool_use) →
+  // user(tool_result) → assistant(text) can stamp multiple rows with the same
+  // timestamp; without a tiebreaker the replay order is undefined, which
+  // breaks the Anthropic protocol (a tool_result must immediately follow its
+  // matching tool_use). `sequence` is the secondary sort key.
+  sequence       Int
   createdAt      DateTime     @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([createdAt])
+  @@index([conversationId, sequence])
 }

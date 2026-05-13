@@ -136,6 +136,59 @@ describe('agent persistence', () => {
     expect(rows[0]?.role).toBe('user');
   });
 
+  it('preserves order even when multiple messages share createdAt (sequence tiebreaker)', async () => {
+    // Insert a 4-row turn in one appendTurn — createdAt can collide at
+    // millisecond granularity, so the [createdAt, sequence] ordering on
+    // reload is the only thing keeping the protocol valid (tool_result
+    // must directly follow its tool_use).
+    const turn: Anthropic.MessageParam[] = [
+      { role: 'user', content: 'add a burger' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tu_a', name: 'add_to_cart', input: { itemId: 'm-burger' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'tu_a', content: '{}' }],
+      },
+      { role: 'assistant', content: [{ type: 'text', text: 'Done.' }] },
+    ];
+    await appendTurn(SESSION, null, turn);
+
+    // Force createdAt collisions across the four rows.
+    const conv = await prisma.conversation.findUnique({ where: { sessionId: SESSION } });
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Message" SET "createdAt" = NOW() WHERE "conversationId" = $1`,
+      conv!.id,
+    );
+
+    const reloaded = await loadHistory(SESSION);
+    expect(reloaded.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    // The tool_result content must come back where it was inserted (index 2).
+    const third = reloaded[2]?.content as Array<{ type: string }>;
+    expect(third[0]?.type).toBe('tool_result');
+  });
+
+  it('sequence numbers are monotonic across turns (later append continues from prior max)', async () => {
+    await appendTurn(SESSION, null, [
+      { role: 'user', content: 'one' },
+      { role: 'assistant', content: 'first' },
+    ]);
+    await appendTurn(SESSION, null, [
+      { role: 'user', content: 'two' },
+      { role: 'assistant', content: 'second' },
+    ]);
+    const conv = await prisma.conversation.findUnique({ where: { sessionId: SESSION } });
+    const rows = await prisma.message.findMany({
+      where: { conversationId: conv!.id },
+      orderBy: { sequence: 'asc' },
+      select: { sequence: true },
+    });
+    expect(rows.map((r) => r.sequence)).toEqual([0, 1, 2, 3]);
+  });
+
   it('attaches the conversation to the user when a userId is supplied later', async () => {
     // First, anonymous turn.
     await appendTurn(SESSION, null, [{ role: 'user', content: 'hi' }]);

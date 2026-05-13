@@ -17,6 +17,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { authRouter } from './routes/auth.js';
 import { menuRouter } from './routes/menu.js';
 import { cartRouter } from './routes/cart.js';
+import { ordersRouter } from './routes/orders.js';
 
 export function createApp(): Express {
   const app = express();
@@ -45,6 +46,7 @@ export function createApp(): Express {
   app.use('/auth', authRouter);
   app.use('/api/menu', menuRouter);
   app.use('/api/cart', cartRouter);
+  app.use('/api/orders', ordersRouter);
 
   // Must be the LAST middleware mounted.
   app.use(errorHandler);

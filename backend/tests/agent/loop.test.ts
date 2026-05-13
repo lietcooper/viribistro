@@ -122,6 +122,56 @@ describe('runAgentLoop', () => {
     expect(cartService.getCart(SESSION).items).toEqual([]);
   });
 
+  it('clarify persists a synthetic tool_result so replayed history is well-formed', async () => {
+    // Turn 1: user → assistant(clarify) short-circuits.
+    const fake1 = createFakeAnthropic();
+    fake1.enqueue({
+      stop_reason: 'tool_use',
+      content: [
+        toolUseBlock('tu_clr', 'clarify', { question: 'Red or white?' }),
+      ],
+    });
+
+    const menu = await loadMenuSnapshot();
+    const turn1 = await runAgentLoop({
+      anthropic: fake1,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'add some wine',
+      model: 'test-model',
+    });
+
+    // The persisted turn must be: user → assistant(tool_use) → user(tool_result).
+    // Without the synthetic tool_result, Anthropic rejects the next call.
+    expect(turn1.newTurnMessages).toHaveLength(3);
+    expect(turn1.newTurnMessages[0]?.role).toBe('user');
+    expect(turn1.newTurnMessages[1]?.role).toBe('assistant');
+    expect(turn1.newTurnMessages[2]?.role).toBe('user');
+    const lastBlock = (turn1.newTurnMessages[2]?.content as Array<{ type: string; tool_use_id?: string }>)[0]!;
+    expect(lastBlock.type).toBe('tool_result');
+    expect(lastBlock.tool_use_id).toBe('tu_clr');
+
+    // Turn 2: replay the prior turn as history — the loop must accept it
+    // and the FakeAnthropic must see well-formed Anthropic messages.
+    const fake2 = createFakeAnthropic();
+    fake2.enqueue({ stop_reason: 'end_turn', content: [textBlock('OK, red.')] });
+
+    await runAgentLoop({
+      anthropic: fake2,
+      sessionId: SESSION,
+      menu,
+      priorMessages: turn1.newTurnMessages,
+      userMessage: 'red please',
+      model: 'test-model',
+    });
+
+    // Sanity: history threaded correctly — first call sees 4 prior messages
+    // (the 3 from turn 1 plus the new user message).
+    const params = fake2.calls[0]!;
+    expect(params.messages).toHaveLength(4);
+  });
+
   it('max-iteration guard: stops after MAX_LOOP_ITERATIONS and returns a graceful reply', async () => {
     const fake = createFakeAnthropic();
     // Enqueue MAX_LOOP_ITERATIONS + a buffer of tool_use loops with a benign

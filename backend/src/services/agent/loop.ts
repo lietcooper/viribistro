@@ -155,6 +155,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
     // the same in-memory cart Map in parallel would race; sequential keeps
     // the per-turn semantics deterministic.
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    let clarifyQuestion: string | null = null;
     for (const tu of toolUseBlocks) {
       const dispatched: DispatchResult = await dispatchTool(
         { id: tu.id, name: tu.name, input: tu.input },
@@ -164,16 +165,17 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
       toolsUsed.push(dispatched.toolName);
 
       if (dispatched.type === 'clarify') {
-        // Short-circuit: the question IS the reply for this turn. We do not
-        // send a tool_result back — the loop ends here, the user replies.
-        // The persisted turn still includes the assistant message with the
-        // clarify tool_use block so future turns see it in history.
-        return {
-          reply: dispatched.question,
-          toolsUsed,
-          cartUpdate: null,
-          newTurnMessages: messages.slice(priorCount),
-        };
+        // Don't return immediately — we still need a matching tool_result for
+        // EVERY tool_use block in this assistant turn so the persisted history
+        // is well-formed. Otherwise replaying it on the next turn causes
+        // Anthropic to reject the request (unmatched tool_use).
+        clarifyQuestion = dispatched.question;
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify({ clarify: dispatched.question }),
+        });
+        continue;
       }
 
       if (dispatched.mutated) {
@@ -190,6 +192,19 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
     // Feed the results back as a single user message containing every
     // tool_result block (matches Anthropic's expected protocol).
     messages.push({ role: 'user', content: toolResults });
+
+    if (clarifyQuestion !== null) {
+      // Short-circuit: the clarify question IS the reply for this turn.
+      // The persisted turn now includes BOTH the assistant message with the
+      // clarify tool_use block AND a synthetic tool_result, so the next
+      // call's history replays as a valid Anthropic message sequence.
+      return {
+        reply: clarifyQuestion,
+        toolsUsed,
+        cartUpdate: mutated ? getCart(sessionId) : null,
+        newTurnMessages: messages.slice(priorCount),
+      };
+    }
 
     response = await anthropic.messages.create({
       model,

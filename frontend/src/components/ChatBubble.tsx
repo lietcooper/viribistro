@@ -84,10 +84,7 @@ export function ChatBubble({ message }: ChatBubbleProps) {
           }}
         >
           <Text
-            style={[
-              type.body,
-              { color: isUser ? colors.text.inverse : colors.text.primary },
-            ]}
+            style={[type.body, { color: isUser ? colors.text.inverse : colors.text.primary }]}
           >
             {message.content}
           </Text>

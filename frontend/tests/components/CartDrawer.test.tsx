@@ -88,12 +88,10 @@ describe('CartDrawer', () => {
       data: { cart: { items: [], total: '0.00' } },
     });
 
-    const alertSpy = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation((_t, _m, buttons) => {
-        const ok = (buttons ?? []).find((b) => b.style === 'destructive');
-        ok?.onPress?.();
-      });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      const ok = (buttons ?? []).find((b) => b.style === 'destructive');
+      ok?.onPress?.();
+    });
 
     render(<CartDrawer />);
     act(() => useCartUiStore.getState().openDrawer());

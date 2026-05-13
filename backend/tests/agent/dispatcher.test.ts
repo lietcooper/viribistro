@@ -102,10 +102,7 @@ describe('dispatchTool', () => {
 
   it('throws AppError for an unknown tool name (programmer error, not LLM)', async () => {
     await expect(
-      dispatchTool(
-        { id: 'tu_5', name: 'flambe', input: {} },
-        { sessionId: SESSION },
-      ),
+      dispatchTool({ id: 'tu_5', name: 'flambe', input: {} }, { sessionId: SESSION }),
     ).rejects.toBeInstanceOf(AppError);
   });
 

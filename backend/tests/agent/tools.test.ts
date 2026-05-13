@@ -50,9 +50,7 @@ describe('AI agent tool schemas', () => {
 
   it('remove_from_cart requires itemId', () => {
     const schema = toolSchemas.find((t) => t.name === 'remove_from_cart')!;
-    expect((schema.input_schema as { required?: string[] }).required).toEqual([
-      'itemId',
-    ]);
+    expect((schema.input_schema as { required?: string[] }).required).toEqual(['itemId']);
     const zod = toolInputZod.remove_from_cart;
     expect(zod.safeParse({ itemId: 'abc' }).success).toBe(true);
     expect(zod.safeParse({}).success).toBe(false);

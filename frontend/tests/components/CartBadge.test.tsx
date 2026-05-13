@@ -70,10 +70,7 @@ describe('CartBadge', () => {
     render(<CartBadge />);
 
     act(() => {
-      useCartStore.getState().addItem(
-        { menuItemId: 'a', name: 'A', unitPrice: '5.00' },
-        1,
-      );
+      useCartStore.getState().addItem({ menuItemId: 'a', name: 'A', unitPrice: '5.00' }, 1);
     });
 
     // Two spring calls fire — 1.4x bounce + 1.0 snap-back.

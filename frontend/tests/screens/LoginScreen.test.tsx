@@ -66,7 +66,6 @@ describe('LoginScreen', () => {
   });
 
   it('redirects to the OAuth start URL when the Google button is tapped', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { openGoogleOAuth } = require('@/lib/oauth');
 
     render(<LoginScreen navigation={makeNav() as any} route={{} as any} />);

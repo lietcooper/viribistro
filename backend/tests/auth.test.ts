@@ -17,13 +17,11 @@ describe('Email/password auth', () => {
   describe('POST /auth/register', () => {
     it('creates a User (provider=local) and returns user + access token + refresh cookie', async () => {
       const app = await buildTestApp();
-      const res = await request(app)
-        .post('/auth/register')
-        .send({
-          email: 'a@b.com',
-          password: 'correcthorsebatterystaple',
-          name: 'Alice',
-        });
+      const res = await request(app).post('/auth/register').send({
+        email: 'a@b.com',
+        password: 'correcthorsebatterystaple',
+        name: 'Alice',
+      });
 
       expect(res.status).toBe(201);
       expect(res.body.user).toMatchObject({

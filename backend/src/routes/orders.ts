@@ -41,16 +41,12 @@ function optionalUserId(req: { headers: { authorization?: string } }): string | 
 
 export const ordersRouter: Router = Router();
 
-ordersRouter.post(
-  '/',
-  validate({ body: CreateOrderBodySchema }),
-  async (req, res) => {
-    const userId = optionalUserId(req);
-    const { sessionId } = req.body as { sessionId: string };
-    const order = await orders.confirmCart(userId, sessionId);
-    res.status(201).json({ order });
-  },
-);
+ordersRouter.post('/', validate({ body: CreateOrderBodySchema }), async (req, res) => {
+  const userId = optionalUserId(req);
+  const { sessionId } = req.body as { sessionId: string };
+  const order = await orders.confirmCart(userId, sessionId);
+  res.status(201).json({ order });
+});
 
 ordersRouter.get('/', requireAuth, async (req, res) => {
   const { sub: userId } = authedUser(req);

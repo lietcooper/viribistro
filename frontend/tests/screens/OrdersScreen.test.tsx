@@ -83,13 +83,9 @@ describe('OrdersScreen', () => {
     primeMocks();
     renderWithNav(<OrdersScreen />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId('orders-list')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('orders-list')).toBeTruthy());
 
-    expect(
-      screen.getByText('2 × Wagyu Burger, 1 × Tuna Tartare'),
-    ).toBeTruthy();
+    expect(screen.getByText('2 × Wagyu Burger, 1 × Tuna Tartare')).toBeTruthy();
     expect(screen.getByText('$52.00')).toBeTruthy();
   });
 

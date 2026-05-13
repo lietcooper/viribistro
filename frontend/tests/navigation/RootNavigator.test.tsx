@@ -4,7 +4,6 @@
 // branch was rendered, not about the inner navigators (which need a
 // fully-wired NavigationContainer to mount).
 import { render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
 
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -28,7 +27,6 @@ jest.mock('@/navigation/MainTabs', () => ({
 // the "function components cannot be given refs" warning when
 // RootNavigator passes its navRef.
 jest.mock('@react-navigation/native', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
   return {
     NavigationContainer: React.forwardRef(
@@ -49,7 +47,6 @@ jest.mock('@/hooks/useBootstrapAuth', () => ({
   useBootstrapAuth: () => ({ ready: true }),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { RootNavigator } = require('@/navigation/RootNavigator');
 
 beforeEach(() => {

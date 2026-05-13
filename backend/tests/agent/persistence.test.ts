@@ -34,15 +34,11 @@ describe('agent persistence', () => {
   });
 
   it('appendTurn creates the conversation on first call, then reuses it', async () => {
-    await appendTurn(SESSION, null, [
-      { role: 'user', content: 'first hi' },
-    ]);
+    await appendTurn(SESSION, null, [{ role: 'user', content: 'first hi' }]);
     const convs1 = await prisma.conversation.findMany({ where: { sessionId: SESSION } });
     expect(convs1).toHaveLength(1);
 
-    await appendTurn(SESSION, null, [
-      { role: 'user', content: 'second hi' },
-    ]);
+    await appendTurn(SESSION, null, [{ role: 'user', content: 'second hi' }]);
     const convs2 = await prisma.conversation.findMany({ where: { sessionId: SESSION } });
     expect(convs2).toHaveLength(1);
     // Same conversation row, two messages now.
@@ -127,9 +123,7 @@ describe('agent persistence', () => {
     await appendTurn(SESSION, null, [
       {
         role: 'user',
-        content: [
-          { type: 'tool_result', tool_use_id: 't', content: '{}' },
-        ],
+        content: [{ type: 'tool_result', tool_use_id: 't', content: '{}' }],
       },
     ]);
     const rows = await prisma.message.findMany({});

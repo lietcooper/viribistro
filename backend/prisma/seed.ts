@@ -184,8 +184,7 @@ const MENU: MenuItemSeed[] = [
   // ─── Drinks (6) ────────────────────────────────────────────────────────────
   {
     name: 'Sparkling Mineral Water',
-    description:
-      'Imported still or sparkling water served chilled with a lemon twist.',
+    description: 'Imported still or sparkling water served chilled with a lemon twist.',
     price: '6.00',
     category: 'drinks',
     tags: ['vegan', 'gluten-free'],

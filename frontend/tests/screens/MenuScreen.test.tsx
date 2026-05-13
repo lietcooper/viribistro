@@ -139,10 +139,7 @@ describe('MenuScreen', () => {
       await waitFor(() => {
         expect(screen.getByText('Could not load the menu.')).toBeTruthy();
       });
-      expect(errSpy).toHaveBeenCalledWith(
-        '[MenuScreen] fetch failed:',
-        expect.any(Error),
-      );
+      expect(errSpy).toHaveBeenCalledWith('[MenuScreen] fetch failed:', expect.any(Error));
     } finally {
       errSpy.mockRestore();
     }

@@ -26,11 +26,19 @@ const EXIT_DURATION_MS = 220;
 function styleFor(tone: ToastTone) {
   switch (tone) {
     case 'success':
-      return { bg: colors.success, fg: colors.text.inverse, icon: 'checkmark-circle' as const };
+      return {
+        bg: colors.success,
+        fg: colors.text.inverse,
+        icon: 'checkmark-circle' as const,
+      };
     case 'error':
       return { bg: colors.error, fg: colors.text.inverse, icon: 'alert-circle' as const };
     default:
-      return { bg: colors.bg.inverse, fg: colors.text.inverse, icon: 'information-circle' as const };
+      return {
+        bg: colors.bg.inverse,
+        fg: colors.text.inverse,
+        icon: 'information-circle' as const,
+      };
   }
 }
 

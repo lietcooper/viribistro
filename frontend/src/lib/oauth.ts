@@ -28,9 +28,7 @@ export async function openGoogleOAuth(): Promise<void> {
     await Linking.openURL(url);
   } catch (err) {
     console.warn('[oauth] Linking.openURL failed:', err);
-    useToastStore
-      .getState()
-      .show("Couldn't open Google sign-in — please try again.", 'error');
+    useToastStore.getState().show("Couldn't open Google sign-in — please try again.", 'error');
     throw err;
   }
 }

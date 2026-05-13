@@ -93,11 +93,10 @@ describe('createApiClient — auth refresh', () => {
     // 1) original request → 401
     // 2) /auth/refresh → 200 with new token
     // 3) original request retry → 200
-    scripted.push(
-      { status: 401, data: { code: 'TOKEN_EXPIRED' } },
-      refreshSuccess,
-      { status: 200, data: { items: [] } },
-    );
+    scripted.push({ status: 401, data: { code: 'TOKEN_EXPIRED' } }, refreshSuccess, {
+      status: 200,
+      data: { items: [] },
+    });
 
     const res = await client.get('/api/orders');
 
@@ -142,10 +141,7 @@ describe('createApiClient — auth refresh', () => {
     const client = createApiClient({ baseURL: 'http://api.test' });
     attachAdapter(client, scripted.adapter);
 
-    scripted.push(
-      { status: 401 },
-      { status: 401, data: { code: 'INVALID_REFRESH_TOKEN' } },
-    );
+    scripted.push({ status: 401 }, { status: 401, data: { code: 'INVALID_REFRESH_TOKEN' } });
 
     try {
       await expect(client.get('/api/orders')).rejects.toBeDefined();

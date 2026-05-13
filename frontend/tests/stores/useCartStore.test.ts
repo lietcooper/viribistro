@@ -94,9 +94,7 @@ describe('computeTotal', () => {
       ]),
     ).toBe('28.00');
     expect(
-      computeTotal([
-        { menuItemId: '1', name: 'A', unitPrice: '4.99', quantity: 3 },
-      ]),
+      computeTotal([{ menuItemId: '1', name: 'A', unitPrice: '4.99', quantity: 3 }]),
     ).toBe('14.97');
   });
 });

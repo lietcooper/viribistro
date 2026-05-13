@@ -46,8 +46,7 @@ export interface ChatState {
   clearHistory: () => Promise<void>;
 }
 
-const FALLBACK_REPLY =
-  "Sorry, I couldn't reach the bistro right now — try again in a moment?";
+const FALLBACK_REPLY = "Sorry, I couldn't reach the bistro right now — try again in a moment?";
 
 function makeMessageId(): string {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
@@ -111,9 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // still produced but the next message won't see this turn in the
       // history snapshot — surface a quiet warning so they know.
       if (res.data.historyPersisted === false) {
-        useToastStore
-          .getState()
-          .show("Conversation history may be out of sync.", 'info');
+        useToastStore.getState().show('Conversation history may be out of sync.', 'info');
       }
     } catch (err) {
       const fallback: ChatMessage = {

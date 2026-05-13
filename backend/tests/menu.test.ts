@@ -70,7 +70,9 @@ describe('Public menu routes', () => {
       const res = await request(app).get('/api/menu?category=mains');
       expect(res.status).toBe(200);
       expect(res.body.items.length).toBe(8);
-      expect(res.body.items.every((i: { category: string }) => i.category === 'mains')).toBe(true);
+      expect(res.body.items.every((i: { category: string }) => i.category === 'mains')).toBe(
+        true,
+      );
     });
 
     it('rejects an invalid ?category with 400', async () => {

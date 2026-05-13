@@ -10,9 +10,7 @@ describe('CORS configuration', () => {
 
   it('allows the configured FRONTEND_URL with credentials', async () => {
     const app = await buildTestApp();
-    const res = await request(app)
-      .get('/healthz')
-      .set('Origin', 'http://localhost:8081');
+    const res = await request(app).get('/healthz').set('Origin', 'http://localhost:8081');
     expect(res.status).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:8081');
     expect(res.headers['access-control-allow-credentials']).toBe('true');
@@ -20,9 +18,7 @@ describe('CORS configuration', () => {
 
   it('does NOT echo back an unrelated origin', async () => {
     const app = await buildTestApp();
-    const res = await request(app)
-      .get('/healthz')
-      .set('Origin', 'https://evil.example.com');
+    const res = await request(app).get('/healthz').set('Origin', 'https://evil.example.com');
     // Same-origin request from supertest still gets a 200 body — the browser
     // is what enforces the CORS check on the client. What we assert is that
     // we do not echo the evil origin back as allow-origin (which would be a
@@ -40,6 +36,8 @@ describe('CORS configuration', () => {
     expect(res.status).toBeLessThan(300);
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:8081');
     expect(res.headers['access-control-allow-credentials']).toBe('true');
-    expect((res.headers['access-control-allow-methods'] ?? '').toUpperCase()).toContain('POST');
+    expect((res.headers['access-control-allow-methods'] ?? '').toUpperCase()).toContain(
+      'POST',
+    );
   });
 });

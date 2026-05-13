@@ -5,11 +5,7 @@ function textBlock(text: string): Anthropic.TextBlock {
   return { type: 'text', text, citations: null };
 }
 
-function toolUseBlock(
-  id: string,
-  name: string,
-  input: unknown,
-): Anthropic.ToolUseBlock {
+function toolUseBlock(id: string, name: string, input: unknown): Anthropic.ToolUseBlock {
   return { type: 'tool_use', id, name, input } as unknown as Anthropic.ToolUseBlock;
 }
 
@@ -55,8 +51,7 @@ function latestUserIsToolResult(messages: Anthropic.MessageParam[]): boolean {
     const msg = messages[i];
     if (msg?.role !== 'user') continue;
     return (
-      Array.isArray(msg.content) &&
-      msg.content.some((block) => block.type === 'tool_result')
+      Array.isArray(msg.content) && msg.content.some((block) => block.type === 'tool_result')
     );
   }
   return false;
@@ -67,9 +62,7 @@ function itemIdFromSystem(
   itemName: string,
 ): string | null {
   const system = Array.isArray(params.system) ? params.system : [];
-  const text = system
-    .map((block) => (block.type === 'text' ? block.text : ''))
-    .join('\n');
+  const text = system.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
   const escaped = itemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = text.match(new RegExp(`${escaped} \\(id: ([^)]+)\\)`, 'i'));
   return match?.[1] ?? null;
@@ -136,7 +129,7 @@ export function createE2eFakeAnthropic(): AnthropicLike {
           params,
           [
             textBlock(
-              "I don't have a table booking system, but I can help you order food. Want me to recommend something? <SUGGEST>[\"What's on the menu?\",\"Add the wagyu burger\"]</SUGGEST>",
+              'I don\'t have a table booking system, but I can help you order food. Want me to recommend something? <SUGGEST>["What\'s on the menu?","Add the wagyu burger"]</SUGGEST>',
             ),
           ],
           'end_turn',

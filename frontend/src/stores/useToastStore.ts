@@ -21,7 +21,6 @@ export const useToastStore = create<ToastState>((set) => ({
   message: '',
   tone: 'info',
   shownAt: 0,
-  show: (message, tone = 'info') =>
-    set({ visible: true, message, tone, shownAt: Date.now() }),
+  show: (message, tone = 'info') => set({ visible: true, message, tone, shownAt: Date.now() }),
   hide: () => set({ visible: false }),
 }));

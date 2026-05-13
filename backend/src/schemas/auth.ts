@@ -7,11 +7,7 @@ export const PasswordSchema = z
   .min(12, 'Password must be at least 12 characters')
   .max(128, 'Password must be at most 128 characters');
 
-export const EmailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .email('Must be a valid email');
+export const EmailSchema = z.string().trim().toLowerCase().email('Must be a valid email');
 
 export const RegisterBodySchema = z.object({
   email: EmailSchema,

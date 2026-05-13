@@ -81,9 +81,7 @@ describe('MenuItemModal', () => {
   // on item id, swapping the item must reset the displayed quantity.
   it('resets quantity to 1 when the displayed item changes', () => {
     const onClose = jest.fn();
-    const { rerender } = render(
-      <MenuItemModal item={burger} onClose={onClose} />,
-    );
+    const { rerender } = render(<MenuItemModal item={burger} onClose={onClose} />);
     fireEvent.press(screen.getByTestId('menu-item-modal-increment'));
     fireEvent.press(screen.getByTestId('menu-item-modal-increment'));
     expect(screen.getByText('Add 3 to cart')).toBeTruthy();

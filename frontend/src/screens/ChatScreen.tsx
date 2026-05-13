@@ -53,9 +53,7 @@ export function ChatScreen() {
   // onContentSizeChange below and caused jank on slower devices. The
   // onContentSizeChange path fires after layout, which is what we want.
 
-  const renderItem = ({ item }: { item: ChatMessage }) => (
-    <ChatBubble message={item} />
-  );
+  const renderItem = ({ item }: { item: ChatMessage }) => <ChatBubble message={item} />;
 
   // Only the most recent assistant message's suggestions are live. Older
   // ones are still in the store for history fidelity but render no chips,
@@ -83,9 +81,7 @@ export function ChatScreen() {
           }}
         >
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={[type.title, { color: colors.text.primary }]}>
-              AI Host
-            </Text>
+            <Text style={[type.title, { color: colors.text.primary }]}>AI Host</Text>
             <Text style={[type.caption, { color: colors.text.secondary }]}>
               Tell me what you'd like to eat tonight.
             </Text>
@@ -109,11 +105,7 @@ export function ChatScreen() {
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Ionicons
-              name="refresh-outline"
-              size={14}
-              color={colors.text.secondary}
-            />
+            <Ionicons name="refresh-outline" size={14} color={colors.text.secondary} />
             <Text
               style={{
                 fontFamily: 'DMSans-Medium',
@@ -132,9 +124,7 @@ export function ChatScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
         >
           {messages.length === 0 ? (
-            <View
-              style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 12 }}
-            >
+            <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 12 }}>
               <View
                 style={{
                   paddingHorizontal: 24,
@@ -146,8 +136,7 @@ export function ChatScreen() {
                   How can I help?
                 </Text>
                 <Text style={[type.caption, { color: colors.text.secondary }]}>
-                  Ask about dishes, build a cart, or just see what's good
-                  tonight.
+                  Ask about dishes, build a cart, or just see what's good tonight.
                 </Text>
               </View>
               <SuggestedPromptChips onSelect={sendMessage} />
@@ -166,19 +155,14 @@ export function ChatScreen() {
                   </View>
                 ) : null
               }
-              onContentSizeChange={() =>
-                listRef.current?.scrollToEnd({ animated: true })
-              }
+              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
               testID="chat-list"
             />
           )}
 
           {followups.length > 0 ? (
             <View style={{ paddingBottom: 8 }} testID="chat-followups">
-              <SuggestedPromptChips
-                onSelect={sendMessage}
-                prompts={followups}
-              />
+              <SuggestedPromptChips onSelect={sendMessage} prompts={followups} />
             </View>
           ) : null}
 

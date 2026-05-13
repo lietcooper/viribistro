@@ -56,12 +56,8 @@ cartRouter.delete(
 // keeps them distinct — keep this route POST as the CLAUDE.md spec
 // requires, and do not rename the param above to anything that could
 // shadow a literal segment.
-cartRouter.post(
-  '/reset',
-  validate({ body: ResetCartBodySchema }),
-  async (req, res) => {
-    const { sessionId } = req.body as { sessionId: string };
-    const next = await cart.clearCart(sessionId);
-    res.json({ cart: next });
-  },
-);
+cartRouter.post('/reset', validate({ body: ResetCartBodySchema }), async (req, res) => {
+  const { sessionId } = req.body as { sessionId: string };
+  const next = await cart.clearCart(sessionId);
+  res.json({ cart: next });
+});

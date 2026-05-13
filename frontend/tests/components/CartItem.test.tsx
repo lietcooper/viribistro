@@ -61,14 +61,12 @@ describe('CartItem', () => {
 
   it('stepper and remove controls expose accessible labels', () => {
     render(<CartItem item={burger} />);
-    expect(
-      screen.getByLabelText('Increase quantity of Wagyu burger'),
-    ).toBeTruthy();
-    expect(
-      screen.getByLabelText('Decrease quantity of Wagyu burger'),
-    ).toBeTruthy();
+    expect(screen.getByLabelText('Increase quantity of Wagyu burger')).toBeTruthy();
+    expect(screen.getByLabelText('Decrease quantity of Wagyu burger')).toBeTruthy();
     // Both the inline trash button and the swipe-action trash button
     // carry the same remove label.
-    expect(screen.getAllByLabelText('Remove Wagyu burger from cart').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByLabelText('Remove Wagyu burger from cart').length,
+    ).toBeGreaterThanOrEqual(1);
   });
 });

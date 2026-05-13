@@ -36,23 +36,25 @@ describe.skipIf(!LIVE)('live Anthropic integration', () => {
     await cartService.clearCart('live-sess-1');
   });
 
-  it('adds two items from a single natural-language message', { timeout: 60_000 }, async () => {
-    const app = await buildTestApp();
-    const res = await request(app)
-      .post('/api/chat')
-      .send({
+  it(
+    'adds two items from a single natural-language message',
+    { timeout: 60_000 },
+    async () => {
+      const app = await buildTestApp();
+      const res = await request(app).post('/api/chat').send({
         sessionId: 'live-sess-1',
         message: "I'd like the spicy chicken sandwich and a fresh lemonade.",
       });
 
-    expect(res.status).toBe(200);
-    expect(typeof res.body.reply).toBe('string');
-    expect(res.body.reply.length).toBeGreaterThan(0);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.reply).toBe('string');
+      expect(res.body.reply.length).toBeGreaterThan(0);
 
-    const cart = await cartService.getCart('live-sess-1');
-    expect(cart.items.length).toBeGreaterThanOrEqual(2);
-    const names = cart.items.map((i) => i.name.toLowerCase());
-    expect(names.some((n) => n.includes('chicken sandwich'))).toBe(true);
-    expect(names.some((n) => n.includes('lemonade'))).toBe(true);
-  });
+      const cart = await cartService.getCart('live-sess-1');
+      expect(cart.items.length).toBeGreaterThanOrEqual(2);
+      const names = cart.items.map((i) => i.name.toLowerCase());
+      expect(names.some((n) => n.includes('chicken sandwich'))).toBe(true);
+      expect(names.some((n) => n.includes('lemonade'))).toBe(true);
+    },
+  );
 });

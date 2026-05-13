@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://bistro:bistro@localhost:5433/bistro_test?schema=public
+      JWT_SECRET: test-jwt-secret-32-bytes-of-randomness-padding
+      JWT_REFRESH_SECRET: test-refresh-secret-32-bytes-randomness-padding
+      GOOGLE_CLIENT_ID: test-client-id
+      GOOGLE_CLIENT_SECRET: test-client-secret
+      GOOGLE_CALLBACK_URL: http://localhost:3000/auth/google/callback
+      ANTHROPIC_API_KEY: test-key
+      PORT: 3001
+      NODE_ENV: test
+      FRONTEND_URL: http://localhost:8081
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Start Postgres
+        run: docker compose up -d postgres
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            docker exec bistro-postgres pg_isready -U bistro -d bistro_dev && exit 0
+            sleep 2
+          done
+          docker logs bistro-postgres
+          exit 1
+
+      - name: Apply test database migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint
+
+      - name: Validate Prisma schema
+        working-directory: backend
+        run: npm run lint:schema
+
+      - name: Check backend formatting
+        working-directory: backend
+        run: npm run format:check
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Test backend
+        working-directory: backend
+        run: npm run test
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Check frontend formatting
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm test -- --runInBand
+
+      - name: Build web bundle
+        working-directory: frontend
+        env:
+          EXPO_PUBLIC_API_URL: http://localhost:3000
+        run: npm run build:web
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npm run e2e

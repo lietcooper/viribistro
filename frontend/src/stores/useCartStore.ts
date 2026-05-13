@@ -18,7 +18,10 @@ import type { Cart, CartItem } from '@/types/api';
 export interface CartState {
   items: CartItem[];
   total: string;
-  addItem: (item: { menuItemId: string; name: string; unitPrice: string }, quantity?: number) => void;
+  addItem: (
+    item: { menuItemId: string; name: string; unitPrice: string },
+    quantity?: number,
+  ) => void;
   removeItem: (menuItemId: string) => void;
   modifyItem: (menuItemId: string, newQuantity: number) => void;
   clearCart: () => void;
@@ -85,9 +88,7 @@ export const useCartStore = create<CartState>((set) => ({
       const existing = state.items.find((i) => i.menuItemId === menuItemId);
       const nextItems = existing
         ? state.items.map((i) =>
-            i.menuItemId === menuItemId
-              ? { ...i, quantity: i.quantity + quantity }
-              : i,
+            i.menuItemId === menuItemId ? { ...i, quantity: i.quantity + quantity } : i,
           )
         : [...state.items, { menuItemId, name, unitPrice, quantity }];
       return withTotal(nextItems);

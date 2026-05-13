@@ -29,7 +29,12 @@ function serializeOrder(order: {
   status: 'pending' | 'confirmed';
   totalPrice: { toString: () => string };
   createdAt: Date;
-  items: { id: string; menuItemId: string; quantity: number; unitPrice: { toString: () => string } }[];
+  items: {
+    id: string;
+    menuItemId: string;
+    quantity: number;
+    unitPrice: { toString: () => string };
+  }[];
 }): SerializedOrder {
   return {
     id: order.id,
@@ -97,7 +102,11 @@ async function confirmCartInner(
     }
     const unavailable = menuItems.find((m) => !m.available);
     if (unavailable) {
-      throw new AppError(409, 'ITEM_UNAVAILABLE', `Item ${unavailable.id} is no longer available`);
+      throw new AppError(
+        409,
+        'ITEM_UNAVAILABLE',
+        `Item ${unavailable.id} is no longer available`,
+      );
     }
 
     const priceById = new Map(menuItems.map((m) => [m.id, m.price] as const));

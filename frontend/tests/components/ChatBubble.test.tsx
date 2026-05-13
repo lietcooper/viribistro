@@ -32,7 +32,12 @@ describe('ChatBubble', () => {
         message={makeMessage({
           cartUpdate: {
             items: [
-              { menuItemId: 'mi_burger', name: 'Wagyu Burger', quantity: 1, unitPrice: '24.00' },
+              {
+                menuItemId: 'mi_burger',
+                name: 'Wagyu Burger',
+                quantity: 1,
+                unitPrice: '24.00',
+              },
             ],
             total: '24.00',
           },

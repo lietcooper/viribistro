@@ -46,9 +46,7 @@ describe('SignupScreen', () => {
     });
 
     expect(getRegister()).not.toHaveBeenCalled();
-    expect(
-      screen.getByText('Password must be at least 12 characters'),
-    ).toBeTruthy();
+    expect(screen.getByText('Password must be at least 12 characters')).toBeTruthy();
   });
 
   it('navigates to Login when the sign-in link is tapped', () => {
@@ -64,9 +62,7 @@ describe('SignupScreen', () => {
       fireEvent.press(screen.getByTestId('signup-submit'));
     });
     expect(getRegister()).not.toHaveBeenCalled();
-    expect(
-      screen.getByText('Name, email and password are all required'),
-    ).toBeTruthy();
+    expect(screen.getByText('Name, email and password are all required')).toBeTruthy();
   });
 
   it('surfaces the API error message when register throws', async () => {
@@ -104,7 +100,6 @@ describe('SignupScreen', () => {
   });
 
   it('redirects to the OAuth start URL when the Google button is tapped', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { openGoogleOAuth } = require('@/lib/oauth');
     render(<SignupScreen navigation={makeNav() as any} route={{} as any} />);
     fireEvent.press(screen.getByTestId('signup-google'));

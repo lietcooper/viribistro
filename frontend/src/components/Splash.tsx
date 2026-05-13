@@ -18,9 +18,7 @@ export function Splash() {
       testID="splash"
     >
       <Text style={[type.hero, { color: colors.brand.primary }]}>Bistro</Text>
-      <Text
-        style={[type.caption, { color: colors.text.secondary, marginTop: 8 }]}
-      >
+      <Text style={[type.caption, { color: colors.text.secondary, marginTop: 8 }]}>
         Setting the table…
       </Text>
     </View>

@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-
 // Mock react-native-reanimated. The library ships an official mock that
 // turns shared values into plain objects and animation helpers into
 // pass-through fns so we can spy on them and run components under Jest.

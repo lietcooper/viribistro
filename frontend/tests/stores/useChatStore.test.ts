@@ -67,10 +67,7 @@ describe('useChatStore', () => {
     });
 
     const last = useChatStore.getState().messages.at(-1);
-    expect(last?.suggestedReplies).toEqual([
-      'Add it to my cart',
-      'Show me drinks',
-    ]);
+    expect(last?.suggestedReplies).toEqual(['Add it to my cart', 'Show me drinks']);
   });
 
   it('defaults suggestedReplies to an empty array when the server omits it', async () => {
@@ -147,9 +144,7 @@ describe('useChatStore', () => {
 
   it('resetSession clears the conversation', () => {
     useChatStore.setState({
-      messages: [
-        { id: 'a', role: 'user', content: 'x', createdAt: 1 },
-      ],
+      messages: [{ id: 'a', role: 'user', content: 'x', createdAt: 1 }],
       isTyping: true,
       error: 'boom',
     });
@@ -175,9 +170,7 @@ describe('useChatStore', () => {
     });
 
     expect(useChatStore.getState().messages).toEqual([]);
-    expect(mockClient.delete).toHaveBeenCalledWith(
-      '/api/chat/history/clear-sess',
-    );
+    expect(mockClient.delete).toHaveBeenCalledWith('/api/chat/history/clear-sess');
   });
 
   it('clearHistory still resets locally when the network call fails', async () => {

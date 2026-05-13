@@ -120,7 +120,12 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
                 >
                   <Ionicons name="remove" size={20} color={colors.text.primary} />
                 </Pressable>
-                <Text style={[type.heading, { color: colors.text.primary, minWidth: 24, textAlign: 'center' }]}>
+                <Text
+                  style={[
+                    type.heading,
+                    { color: colors.text.primary, minWidth: 24, textAlign: 'center' },
+                  ]}
+                >
                   {quantity}
                 </Text>
                 <Pressable

@@ -62,8 +62,8 @@ export function LoginScreen({ navigation }: Props) {
       // RootNavigator swaps to MainTabs on token presence — no nav call
       // needed here.
     } catch (err) {
-      const apiMessage = (err as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message;
+      const apiMessage = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
       setError(apiMessage ?? 'Invalid email or password');
     } finally {
       setSubmitting(false);
@@ -86,12 +86,8 @@ export function LoginScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ marginBottom: 36, alignItems: 'flex-start' }}>
-            <Text style={[type.hero, { color: colors.brand.primary }]}>
-              Bistro
-            </Text>
-            <Text
-              style={[type.caption, { color: colors.text.secondary, marginTop: 4 }]}
-            >
+            <Text style={[type.hero, { color: colors.brand.primary }]}>Bistro</Text>
+            <Text style={[type.caption, { color: colors.text.secondary, marginTop: 4 }]}>
               Conversational ordering, beautifully served.
             </Text>
           </View>
@@ -139,12 +135,7 @@ export function LoginScreen({ navigation }: Props) {
             style={{ marginTop: 28, alignItems: 'center' }}
             testID="login-go-signup"
           >
-            <Text
-              style={[
-                type.label,
-                { color: colors.text.secondary },
-              ]}
-            >
+            <Text style={[type.label, { color: colors.text.secondary }]}>
               Don't have an account?{' '}
               <Text style={{ color: colors.brand.primary }}>Sign up</Text>
             </Text>

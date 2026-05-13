@@ -21,7 +21,7 @@ export const shadows: Record<'card' | 'elevated' | 'bottomSheet', ViewStyle> = {
   bottomSheet: {
     shadowColor: '#1C1A17',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 16,
   },

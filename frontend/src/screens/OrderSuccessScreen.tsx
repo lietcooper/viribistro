@@ -66,7 +66,10 @@ function ConfettiDot({
       progress.value = 1;
       return;
     }
-    progress.value = withDelay(start, withSpring(1, { damping: 14, stiffness: 180, mass: 0.7 }));
+    progress.value = withDelay(
+      start,
+      withSpring(1, { damping: 14, stiffness: 180, mass: 0.7 }),
+    );
   }, [progress, reduced, start]);
 
   const rad = (angle * Math.PI) / 180;
@@ -117,10 +120,7 @@ export function OrderSuccessScreen({
     if (!reduced) {
       ringOpacity.value = withTiming(1, { duration: 220 });
       ringScale.value = withSpring(1, springs.bounce);
-      checkDashOffset.value = withDelay(
-        220,
-        withTiming(0, { duration: 360 }),
-      );
+      checkDashOffset.value = withDelay(220, withTiming(0, { duration: 360 }));
       titleY.value = withDelay(360, withSpring(0, springs.modal));
       titleOpacity.value = withDelay(360, withTiming(1, { duration: 280 }));
     }

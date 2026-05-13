@@ -38,8 +38,7 @@ export const toolSchemas: Anthropic.Tool[] = [
   },
   {
     name: 'remove_from_cart',
-    description:
-      "Remove a single menu item from the cart entirely (regardless of quantity).",
+    description: 'Remove a single menu item from the cart entirely (regardless of quantity).',
     input_schema: {
       type: 'object',
       properties: {
@@ -54,7 +53,7 @@ export const toolSchemas: Anthropic.Tool[] = [
   {
     name: 'modify_item',
     description:
-      "Set the cart quantity for a menu item to an exact new value. " +
+      'Set the cart quantity for a menu item to an exact new value. ' +
       "A newQuantity of 0 removes the item. If the item isn't in the cart yet and " +
       'newQuantity is positive, it is added.',
     input_schema: {
@@ -69,7 +68,7 @@ export const toolSchemas: Anthropic.Tool[] = [
   {
     name: 'get_cart',
     description:
-      "Return the current cart for this session. Use this when the user asks " +
+      'Return the current cart for this session. Use this when the user asks ' +
       "what's in their cart or to confirm a running total.",
     input_schema: {
       type: 'object',
@@ -101,15 +100,16 @@ export const toolSchemas: Anthropic.Tool[] = [
   {
     name: 'clarify',
     description:
-      "Ask the user a follow-up question when their request is ambiguous (e.g. " +
+      'Ask the user a follow-up question when their request is ambiguous (e.g. ' +
       'they say "a burger" and two burgers exist) instead of guessing. This ENDS ' +
-      "the current turn — the question is shown to the user as your reply.",
+      'the current turn — the question is shown to the user as your reply.',
     input_schema: {
       type: 'object',
       properties: {
         question: {
           type: 'string',
-          description: 'The follow-up question to show the user. Be specific and name the candidates.',
+          description:
+            'The follow-up question to show the user. Be specific and name the candidates.',
         },
       },
       required: ['question'],
@@ -227,16 +227,12 @@ export async function dispatchTool(
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'remove_from_cart': {
-        const { itemId } = input as z.infer<
-          (typeof toolInputZod)['remove_from_cart']
-        >;
+        const { itemId } = input as z.infer<(typeof toolInputZod)['remove_from_cart']>;
         const next = await cart.removeItem(ctx.sessionId, itemId);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'modify_item': {
-        const { itemId, newQuantity } = input as z.infer<
-          (typeof toolInputZod)['modify_item']
-        >;
+        const { itemId, newQuantity } = input as z.infer<(typeof toolInputZod)['modify_item']>;
         const next = await cart.modifyItem(ctx.sessionId, itemId, newQuantity);
         return resultOk(block.id, name, true, { cart: next });
       }
@@ -245,9 +241,7 @@ export async function dispatchTool(
         return resultOk(block.id, name, false, { cart: snap });
       }
       case 'get_menu': {
-        const { category } = input as z.infer<
-          (typeof toolInputZod)['get_menu']
-        >;
+        const { category } = input as z.infer<(typeof toolInputZod)['get_menu']>;
         const menu = await loadMenuForTool(category);
         return resultOk(block.id, name, false, { menu });
       }

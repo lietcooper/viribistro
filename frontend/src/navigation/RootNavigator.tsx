@@ -22,7 +22,13 @@ export function RootNavigator() {
   if (!ready) return <Splash />;
 
   return (
-    <NavigationContainer ref={navRef}>
+    <NavigationContainer
+      ref={navRef}
+      // Pin the browser tab title. React Navigation's web integration
+      // updates document.title on every route change by default, which
+      // would otherwise cycle through "Menu / Bistro / Orders".
+      documentTitle={{ formatter: () => 'ViriBistro' }}
+    >
       {token ? <MainTabs navRef={navRef} /> : <AuthStack />}
     </NavigationContainer>
   );

@@ -65,9 +65,7 @@ describe('ChatScreen', () => {
 
   it('shows the typing indicator while isTyping is true', () => {
     useChatStore.setState({
-      messages: [
-        { id: '1', role: 'user', content: 'hello', createdAt: 1 },
-      ],
+      messages: [{ id: '1', role: 'user', content: 'hello', createdAt: 1 }],
       isTyping: true,
     });
     render(<ChatScreen />);
@@ -179,12 +177,10 @@ describe('ChatScreen', () => {
     // Default Platform.OS in jest-expo is ios, so the confirm path goes
     // through Alert.alert. Stub it to immediately fire the destructive
     // button so we can assert the wiring without a real prompt.
-    const alertSpy = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation((_title, _msg, buttons) => {
-        const ok = (buttons ?? []).find((b) => b.style === 'destructive');
-        ok?.onPress?.();
-      });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons) => {
+      const ok = (buttons ?? []).find((b) => b.style === 'destructive');
+      ok?.onPress?.();
+    });
     mockClient.delete.mockResolvedValueOnce({ data: { deleted: 1 } });
 
     useChatStore.setState({
@@ -196,9 +192,7 @@ describe('ChatScreen', () => {
       fireEvent.press(screen.getByTestId('chat-new'));
     });
 
-    expect(mockClient.delete).toHaveBeenCalledWith(
-      '/api/chat/history/test-session',
-    );
+    expect(mockClient.delete).toHaveBeenCalledWith('/api/chat/history/test-session');
     expect(useChatStore.getState().messages).toEqual([]);
 
     alertSpy.mockRestore();

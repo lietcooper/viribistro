@@ -14,11 +14,7 @@ afterEach(() => {
   Platform.OS = originalPlatformOS;
 });
 
-function stubWindow(props: {
-  href?: string;
-  assign?: jest.Mock;
-  replaceState?: jest.Mock;
-}) {
+function stubWindow(props: { href?: string; assign?: jest.Mock; replaceState?: jest.Mock }) {
   Object.defineProperty(globalThis, 'window', {
     writable: true,
     configurable: true,
@@ -54,7 +50,7 @@ describe('openGoogleOAuth', () => {
     // forever because the screen's try/catch never trips.
     Platform.OS = 'ios';
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     const { Linking } = require('react-native');
     const openURL = jest
       .spyOn(Linking, 'openURL')

@@ -126,8 +126,7 @@ describe('cart service', () => {
     await cartService.addItem('session-a', burger.id, 2);
     await cartService.addItem('session-a', salmon.id, 1);
     const cart = await cartService.getCart('session-a');
-    const expected =
-      Number(burger.price) * 2 + Number(salmon.price);
+    const expected = Number(burger.price) * 2 + Number(salmon.price);
     expect(Number(cart.total)).toBeCloseTo(expected, 2);
   });
 

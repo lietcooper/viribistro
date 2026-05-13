@@ -125,9 +125,7 @@ describe('POST /api/chat', () => {
     fake.enqueue({
       stop_reason: 'end_turn',
       content: [
-        textBlock(
-          "I don't have a table booking system, but I can help you order food.",
-        ),
+        textBlock("I don't have a table booking system, but I can help you order food."),
       ],
     });
 

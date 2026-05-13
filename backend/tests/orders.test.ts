@@ -45,9 +45,7 @@ describe('Orders routes', () => {
     it('allows guest checkout when a cart exists', async () => {
       await cartService.addItem('order-sess', burgerId, 1);
       const app = await buildTestApp();
-      const res = await request(app)
-        .post('/api/orders')
-        .send({ sessionId: 'order-sess' });
+      const res = await request(app).post('/api/orders').send({ sessionId: 'order-sess' });
       expect(res.status).toBe(201);
       expect(res.body.order.userId).toBeNull();
       // Cart is cleared after a successful guest checkout, same as authed.
@@ -183,7 +181,7 @@ describe('Orders routes', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns only the authenticated user\'s orders, newest first', async () => {
+    it("returns only the authenticated user's orders, newest first", async () => {
       const { accessToken } = await registerAndLogin();
       // place two orders sequentially
       const app = await buildTestApp();

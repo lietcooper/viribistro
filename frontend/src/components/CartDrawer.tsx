@@ -198,151 +198,154 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
             },
           ]}
         >
-        <View
-          style={{
-            alignItems: 'center',
-            paddingTop: 10,
-            paddingBottom: 4,
-          }}
-        >
           <View
             style={{
-              width: 44,
-              height: 4,
-              borderRadius: 999,
-              backgroundColor: colors.border,
-            }}
-          />
-        </View>
-
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 20,
-            paddingTop: 8,
-          }}
-        >
-          <Text style={[type.title, { color: colors.text.primary }]}>Your Cart</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text
-              style={{
-                fontFamily: 'DMSans-Medium',
-                fontSize: 14,
-                color: colors.text.secondary,
-              }}
-            >
-              {itemCount === 1 ? '1 item' : `${itemCount} items`}
-            </Text>
-            {items.length > 0 ? (
-              <Pressable
-                onPress={handleClearCart}
-                accessibilityRole="button"
-                accessibilityLabel="Clear cart"
-                testID="cart-clear"
-                hitSlop={8}
-                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-              >
-                <Text
-                  style={{
-                    fontFamily: 'DMSans-Medium',
-                    fontSize: 13,
-                    color: colors.error,
-                  }}
-                >
-                  Clear
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        {items.length === 0 ? (
-          <View
-            style={{
-              flex: 1,
               alignItems: 'center',
-              justifyContent: 'center',
-              padding: 20,
+              paddingTop: 10,
+              paddingBottom: 4,
             }}
-            testID="cart-empty"
           >
-            <Ionicons name="restaurant-outline" size={40} color={colors.text.tertiary} />
-            <Text
-              style={[type.heading, { color: colors.text.primary, marginTop: 12 }]}
-            >
-              Your cart is empty
-            </Text>
-            <Text
-              style={[
-                type.caption,
-                { color: colors.text.secondary, textAlign: 'center', marginTop: 6 },
-              ]}
-            >
-              Ask the AI host or browse the menu to start an order.
-            </Text>
-          </View>
-        ) : (
-          <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 }}
-            testID="cart-list"
-          >
-            {items.map((it) => (
-              <CartItem key={it.menuItemId} item={it} />
-            ))}
-          </ScrollView>
-        )}
-
-        <View
-          style={{
-            paddingHorizontal: 20,
-            paddingTop: 12,
-            paddingBottom: 24,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            gap: 12,
-          }}
-        >
-          <View
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <Text style={[type.label, { color: colors.text.secondary }]}>Total</Text>
-            <Text style={[type.price, { color: colors.text.primary }]}>{formatMoney(total)}</Text>
-          </View>
-          {checkoutError ? (
             <View
-              testID="cart-checkout-error"
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderRadius: 10,
-                backgroundColor: colors.bg.secondary,
+                width: 44,
+                height: 4,
+                borderRadius: 999,
+                backgroundColor: colors.border,
               }}
+            />
+          </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 20,
+              paddingTop: 8,
+            }}
+          >
+            <Text style={[type.title, { color: colors.text.primary }]}>Your Cart</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text
+                style={{
+                  fontFamily: 'DMSans-Medium',
+                  fontSize: 14,
+                  color: colors.text.secondary,
+                }}
+              >
+                {itemCount === 1 ? '1 item' : `${itemCount} items`}
+              </Text>
+              {items.length > 0 ? (
+                <Pressable
+                  onPress={handleClearCart}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear cart"
+                  testID="cart-clear"
+                  hitSlop={8}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'DMSans-Medium',
+                      fontSize: 13,
+                      color: colors.error,
+                    }}
+                  >
+                    Clear
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          {items.length === 0 ? (
+            <View
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+              }}
+              testID="cart-empty"
             >
-              <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+              <Ionicons name="restaurant-outline" size={40} color={colors.text.tertiary} />
+              <Text style={[type.heading, { color: colors.text.primary, marginTop: 12 }]}>
+                Your cart is empty
+              </Text>
               <Text
                 style={[
                   type.caption,
-                  { color: colors.error, flex: 1 },
+                  { color: colors.text.secondary, textAlign: 'center', marginTop: 6 },
                 ]}
               >
-                {checkoutError}
+                Ask the AI host or browse the menu to start an order.
               </Text>
             </View>
-          ) : null}
-          <PrimaryButton
-            label="Place order"
-            onPress={handleCheckout}
-            loading={checkoutLoading}
-            disabled={items.length === 0 || checkoutLoading}
-            fullWidth
-            testID="cart-checkout"
-          />
-        </View>
+          ) : (
+            <ScrollView
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingTop: 8,
+                paddingBottom: 16,
+              }}
+              testID="cart-list"
+            >
+              {items.map((it) => (
+                <CartItem key={it.menuItemId} item={it} />
+              ))}
+            </ScrollView>
+          )}
+
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingTop: 12,
+              paddingBottom: 24,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              gap: 12,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={[type.label, { color: colors.text.secondary }]}>Total</Text>
+              <Text style={[type.price, { color: colors.text.primary }]}>
+                {formatMoney(total)}
+              </Text>
+            </View>
+            {checkoutError ? (
+              <View
+                testID="cart-checkout-error"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: colors.bg.secondary,
+                }}
+              >
+                <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+                <Text style={[type.caption, { color: colors.error, flex: 1 }]}>
+                  {checkoutError}
+                </Text>
+              </View>
+            ) : null}
+            <PrimaryButton
+              label="Place order"
+              onPress={handleCheckout}
+              loading={checkoutLoading}
+              disabled={items.length === 0 || checkoutLoading}
+              fullWidth
+              testID="cart-checkout"
+            />
+          </View>
         </Animated.View>
       </View>
     </>

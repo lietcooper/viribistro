@@ -70,10 +70,7 @@ function Chip({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
-export function SuggestedPromptChips({
-  onSelect,
-  prompts,
-}: SuggestedPromptChipsProps) {
+export function SuggestedPromptChips({ onSelect, prompts }: SuggestedPromptChipsProps) {
   const list = prompts ?? DEFAULT_PROMPTS;
   return (
     <View style={{ paddingVertical: 4 }} testID="prompt-chips">

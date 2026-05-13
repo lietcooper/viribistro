@@ -52,9 +52,7 @@ describe('Schema models', () => {
         status: 'confirmed',
         totalPrice: '25.00',
         items: {
-          create: [
-            { menuItemId: menuItem.id, quantity: 2, unitPrice: '12.50' },
-          ],
+          create: [{ menuItemId: menuItem.id, quantity: 2, unitPrice: '12.50' }],
         },
       },
       include: { items: true },
@@ -76,16 +74,12 @@ describe('Schema models', () => {
             {
               role: 'assistant',
               sequence: 1,
-              content: [
-                { type: 'tool_use', id: 'tu_1', name: 'get_menu', input: {} },
-              ],
+              content: [{ type: 'tool_use', id: 'tu_1', name: 'get_menu', input: {} }],
             },
             {
               role: 'tool',
               sequence: 2,
-              content: [
-                { type: 'tool_result', tool_use_id: 'tu_1', content: '...' },
-              ],
+              content: [{ type: 'tool_result', tool_use_id: 'tu_1', content: '...' }],
             },
           ],
         },
@@ -94,11 +88,7 @@ describe('Schema models', () => {
     });
 
     expect(conversation.messages).toHaveLength(3);
-    expect(conversation.messages.map((m) => m.role)).toEqual([
-      'user',
-      'assistant',
-      'tool',
-    ]);
+    expect(conversation.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool']);
   });
 
   it('cascades Message delete when Conversation is deleted', async () => {
@@ -106,9 +96,7 @@ describe('Schema models', () => {
       data: {
         sessionId: 'session-cascade',
         messages: {
-          create: [
-            { role: 'user', sequence: 0, content: { type: 'text', text: 'x' } },
-          ],
+          create: [{ role: 'user', sequence: 0, content: { type: 'text', text: 'x' } }],
         },
       },
     });

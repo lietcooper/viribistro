@@ -3,14 +3,7 @@
 // Filtering and search both run client-side over that cached list.
 import { useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MenuFilterBar, type FilterValue } from '@/components/MenuFilterBar';
 import { MenuItemCard } from '@/components/MenuItemCard';
@@ -135,11 +128,7 @@ export function MenuScreen() {
           columnWrapperStyle={{ gap: 12, paddingHorizontal: 20 }}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 32, gap: 12 }}
           renderItem={({ item, index }) => (
-            <MenuItemCard
-              item={item}
-              index={index}
-              onPress={() => setSelected(item)}
-            />
+            <MenuItemCard item={item} index={index} onPress={() => setSelected(item)} />
           )}
           testID="menu-list"
         />

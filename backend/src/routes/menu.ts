@@ -42,31 +42,25 @@ function serialize(item: {
 
 export const menuRouter: Router = Router();
 
-menuRouter.get(
-  '/',
-  validate({ query: MenuQuerySchema }),
-  async (req, res) => {
-    const { category } = req.query as { category?: 'starters' | 'mains' | 'desserts' | 'drinks' };
-    const items = await prisma.menuItem.findMany({
-      where: {
-        available: true,
-        ...(category ? { category } : {}),
-      },
-      orderBy: [{ category: 'asc' }, { name: 'asc' }],
-    });
-    res.json({ items: items.map(serialize) });
-  },
-);
+menuRouter.get('/', validate({ query: MenuQuerySchema }), async (req, res) => {
+  const { category } = req.query as {
+    category?: 'starters' | 'mains' | 'desserts' | 'drinks';
+  };
+  const items = await prisma.menuItem.findMany({
+    where: {
+      available: true,
+      ...(category ? { category } : {}),
+    },
+    orderBy: [{ category: 'asc' }, { name: 'asc' }],
+  });
+  res.json({ items: items.map(serialize) });
+});
 
-menuRouter.get(
-  '/:id',
-  validate({ params: MenuParamsSchema }),
-  async (req, res) => {
-    const { id } = req.params as { id: string };
-    const item = await prisma.menuItem.findUnique({ where: { id } });
-    if (!item || !item.available) {
-      throw new AppError(404, 'NOT_FOUND', 'Menu item not found');
-    }
-    res.json({ item: serialize(item) });
-  },
-);
+menuRouter.get('/:id', validate({ params: MenuParamsSchema }), async (req, res) => {
+  const { id } = req.params as { id: string };
+  const item = await prisma.menuItem.findUnique({ where: { id } });
+  if (!item || !item.available) {
+    throw new AppError(404, 'NOT_FOUND', 'Menu item not found');
+  }
+  res.json({ item: serialize(item) });
+});

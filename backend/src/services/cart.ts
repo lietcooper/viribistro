@@ -87,7 +87,11 @@ async function lookupMenuItem(
     throw new AppError(400, 'UNKNOWN_MENU_ITEM', `Menu item not found: ${menuItemId}`);
   }
   if (!item.available) {
-    throw new AppError(400, 'UNAVAILABLE_MENU_ITEM', `Menu item is not currently available: ${item.name}`);
+    throw new AppError(
+      400,
+      'UNAVAILABLE_MENU_ITEM',
+      `Menu item is not currently available: ${item.name}`,
+    );
   }
   return item;
 }

@@ -3,8 +3,7 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const backendDir = `${repoRoot}/backend`;
-const databaseUrl =
-  'postgresql://bistro:bistro@localhost:5433/bistro_e2e?schema=public';
+const databaseUrl = 'postgresql://bistro:bistro@localhost:5433/bistro_e2e?schema=public';
 
 function run(command: string, args: string[], cwd = repoRoot): void {
   execFileSync(command, args, {

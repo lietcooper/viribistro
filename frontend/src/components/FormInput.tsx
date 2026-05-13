@@ -15,11 +15,7 @@ interface FormInputProps extends Omit<TextInputProps, 'style'> {
 export function FormInput({ label, error, testID, ...rest }: FormInputProps) {
   const [focused, setFocused] = useState(false);
 
-  const borderColor = error
-    ? colors.error
-    : focused
-      ? colors.brand.primary
-      : colors.border;
+  const borderColor = error ? colors.error : focused ? colors.brand.primary : colors.border;
 
   return (
     <View className="w-full">

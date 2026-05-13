@@ -21,8 +21,6 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": [
-      "expo-font"
-    ]
+    "plugins": ["expo-font"]
   }
 }

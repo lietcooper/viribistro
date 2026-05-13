@@ -110,9 +110,7 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
           <View
             style={{
               backgroundColor:
-                order.status === 'confirmed'
-                  ? colors.successSoft
-                  : colors.bg.secondary,
+                order.status === 'confirmed' ? colors.successSoft : colors.bg.secondary,
               paddingHorizontal: 10,
               paddingVertical: 2,
               borderRadius: 999,
@@ -122,10 +120,7 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
               style={{
                 fontFamily: 'DMSans-Medium',
                 fontSize: 11,
-                color:
-                  order.status === 'confirmed'
-                    ? colors.success
-                    : colors.text.secondary,
+                color: order.status === 'confirmed' ? colors.success : colors.text.secondary,
               }}
             >
               {order.status}
@@ -249,10 +244,7 @@ export function OrdersScreen() {
     }, [load]),
   );
 
-  const nameById = useMemo(
-    () => new Map(menu.map((m) => [m.id, m.name])),
-    [menu],
-  );
+  const nameById = useMemo(() => new Map(menu.map((m) => [m.id, m.name])), [menu]);
 
   // Memoized so the RefreshControl doesn't get a fresh function reference
   // on every render (matches the already-memoized `load`).
@@ -302,14 +294,8 @@ export function OrdersScreen() {
           }}
           testID="orders-empty"
         >
-          <Ionicons
-            name="restaurant-outline"
-            size={36}
-            color={colors.text.tertiary}
-          />
-          <Text style={[type.heading, { color: colors.text.primary }]}>
-            No orders yet
-          </Text>
+          <Ionicons name="restaurant-outline" size={36} color={colors.text.tertiary} />
+          <Text style={[type.heading, { color: colors.text.primary }]}>No orders yet</Text>
           <Text style={[type.caption, { color: colors.text.secondary, textAlign: 'center' }]}>
             Start a chat with the AI host to place your first one.
           </Text>
@@ -322,9 +308,7 @@ export function OrdersScreen() {
             <OrderCard order={item} index={index} nameById={nameById} />
           )}
           contentContainerStyle={{ paddingTop: 4, paddingBottom: 32 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           testID="orders-list"
         />
       )}

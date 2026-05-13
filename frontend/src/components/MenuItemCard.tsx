@@ -59,7 +59,6 @@ export function MenuItemCard({ item, index, onPress }: MenuItemCardProps) {
     );
     // We intentionally do not depend on `index` (would re-trigger on
     // filter/search reorders) or `reduced` (only meaningful at mount).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const enterStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: enterY.value }],
@@ -111,7 +110,14 @@ export function MenuItemCard({ item, index, onPress }: MenuItemCardProps) {
           >
             {item.description}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginTop: 4,
+            }}
+          >
             <Text style={[type.price, { color: colors.brand.primary }]}>
               {formatMoney(item.price)}
             </Text>

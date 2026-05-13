@@ -32,11 +32,9 @@ describe('requireAuth middleware', () => {
   });
 
   it('returns 401 when the token is expired', async () => {
-    const expired = jwt.sign(
-      { sub: 'user_abc', email: 'a@b.com' },
-      process.env.JWT_SECRET!,
-      { expiresIn: '-1s' },
-    );
+    const expired = jwt.sign({ sub: 'user_abc', email: 'a@b.com' }, process.env.JWT_SECRET!, {
+      expiresIn: '-1s',
+    });
     const res = await request(makeApp())
       .get('/protected')
       .set('Authorization', `Bearer ${expired}`);

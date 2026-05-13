@@ -62,46 +62,39 @@ function issueTokens(user: PublicUser): { accessToken: string; refreshToken: str
 
 export const authRouter: Router = Router();
 
-authRouter.post(
-  '/register',
-  validate({ body: RegisterBodySchema }),
-  async (req, res) => {
-    const { email, password, name } = req.body as {
-      email: string;
-      password: string;
-      name: string;
-    };
+authRouter.post('/register', validate({ body: RegisterBodySchema }), async (req, res) => {
+  const { email, password, name } = req.body as {
+    email: string;
+    password: string;
+    name: string;
+  };
 
-    const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(password);
 
-    let user: PublicUser;
-    try {
-      user = await prisma.user.create({
-        data: { email, name, passwordHash, provider: 'local' },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          avatarUrl: true,
-          provider: true,
-          createdAt: true,
-        },
-      });
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002'
-      ) {
-        throw new AppError(409, 'EMAIL_TAKEN', 'Email is already registered');
-      }
-      throw err;
+  let user: PublicUser;
+  try {
+    user = await prisma.user.create({
+      data: { email, name, passwordHash, provider: 'local' },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        provider: true,
+        createdAt: true,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new AppError(409, 'EMAIL_TAKEN', 'Email is already registered');
     }
+    throw err;
+  }
 
-    const { accessToken, refreshToken } = issueTokens(user);
-    setRefreshCookie(res, refreshToken);
-    res.status(201).json({ user, accessToken });
-  },
-);
+  const { accessToken, refreshToken } = issueTokens(user);
+  setRefreshCookie(res, refreshToken);
+  res.status(201).json({ user, accessToken });
+});
 
 authRouter.post(
   '/login',
@@ -117,8 +110,7 @@ authRouter.post(
     // Use a dummy hash so the timing is similar whether the user exists or not.
     // bcrypt's compare will always return false for this synthetic hash.
     const passwordHash =
-      dbUser?.passwordHash ??
-      '$2b$12$abcdefghijklmnopqrstuvCkPmU2kfMTBSyq6ImpiV7B/4Z/qSyByO';
+      dbUser?.passwordHash ?? '$2b$12$abcdefghijklmnopqrstuvCkPmU2kfMTBSyq6ImpiV7B/4Z/qSyByO';
     const ok = await verifyPassword(password, passwordHash);
 
     if (!dbUser || !dbUser.passwordHash || !ok) {
@@ -223,7 +215,9 @@ export async function googleVerifyCallback(
   try {
     const email = profile.emails?.[0]?.value;
     if (!email) {
-      return done(new AppError(400, 'GOOGLE_NO_EMAIL', 'Google profile did not include an email'));
+      return done(
+        new AppError(400, 'GOOGLE_NO_EMAIL', 'Google profile did not include an email'),
+      );
     }
     const avatarUrl = profile.photos?.[0]?.value ?? null;
     const name = profile.displayName?.trim() || email.split('@')[0]!;
@@ -303,7 +297,11 @@ if (googleConfigured) {
 authRouter.get('/google', (req, res, next) => {
   if (!googleConfigured) {
     return next(
-      new AppError(503, 'GOOGLE_NOT_CONFIGURED', 'Google sign-in is not configured on this server'),
+      new AppError(
+        503,
+        'GOOGLE_NOT_CONFIGURED',
+        'Google sign-in is not configured on this server',
+      ),
     );
   }
   return passport.authenticate('google', {
@@ -315,18 +313,26 @@ authRouter.get('/google', (req, res, next) => {
 authRouter.get('/google/callback', (req, res, next) => {
   if (!googleConfigured) {
     return next(
-      new AppError(503, 'GOOGLE_NOT_CONFIGURED', 'Google sign-in is not configured on this server'),
+      new AppError(
+        503,
+        'GOOGLE_NOT_CONFIGURED',
+        'Google sign-in is not configured on this server',
+      ),
     );
   }
-  return passport.authenticate('google', { session: false }, (err: Error | null, user: PublicUser | false) => {
-    if (err) return next(err);
-    if (!user) {
-      return next(new AppError(401, 'GOOGLE_AUTH_FAILED', 'Google authentication failed'));
-    }
-    const { refreshToken } = issueTokens(user);
-    setRefreshCookie(res, refreshToken);
-    // Bounce the user back to the frontend. The frontend's bootstrap effect
-    // hits /auth/refresh on mount and exchanges the cookie for an access token.
-    res.redirect(env.FRONTEND_URL);
-  })(req, res, next);
+  return passport.authenticate(
+    'google',
+    { session: false },
+    (err: Error | null, user: PublicUser | false) => {
+      if (err) return next(err);
+      if (!user) {
+        return next(new AppError(401, 'GOOGLE_AUTH_FAILED', 'Google authentication failed'));
+      }
+      const { refreshToken } = issueTokens(user);
+      setRefreshCookie(res, refreshToken);
+      // Bounce the user back to the frontend. The frontend's bootstrap effect
+      // hits /auth/refresh on mount and exchanges the cookie for an access token.
+      res.redirect(env.FRONTEND_URL);
+    },
+  )(req, res, next);
 });

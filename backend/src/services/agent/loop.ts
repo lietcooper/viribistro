@@ -33,9 +33,7 @@ export const MAX_LOOP_ITERATIONS = 6;
 // pass in a stub that only implements messages.create.
 export interface AnthropicLike {
   messages: {
-    create(
-      params: Anthropic.MessageCreateParamsNonStreaming,
-    ): Promise<Anthropic.Message>;
+    create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
   };
 }
 
@@ -122,8 +120,7 @@ export function extractSuggestions(reply: string): {
   return { cleanReply, suggestions };
 }
 
-const GRACEFUL_STUCK_REPLY =
-  "Sorry, I got stuck — could you try rephrasing?";
+const GRACEFUL_STUCK_REPLY = 'Sorry, I got stuck — could you try rephrasing?';
 
 const GRACEFUL_REFUSAL_REPLY =
   "I can't help with that one. Want me to recommend something from the menu instead?";

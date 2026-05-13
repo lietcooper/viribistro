@@ -33,22 +33,29 @@ function makeAppWithRoute(): express.Express {
   );
 
   // Bare error middleware so failed validation surfaces a structured shape.
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    if (err && typeof err === 'object' && 'issues' in err) {
-      const zerr = err as { issues: { path: (string | number)[]; message: string }[] };
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid request',
-          fields: zerr.issues.map((i) => ({
-            path: i.path.join('.'),
-            message: i.message,
-          })),
-        },
-      });
-    }
-    return res.status(500).json({ error: { code: 'INTERNAL', message: 'Internal error' } });
-  });
+  app.use(
+    (
+      err: unknown,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+    ) => {
+      if (err && typeof err === 'object' && 'issues' in err) {
+        const zerr = err as { issues: { path: (string | number)[]; message: string }[] };
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid request',
+            fields: zerr.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+        });
+      }
+      return res.status(500).json({ error: { code: 'INTERNAL', message: 'Internal error' } });
+    },
+  );
 
   return app;
 }

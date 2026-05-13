@@ -23,7 +23,6 @@ export interface AuthState {
 }
 
 function api() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@/lib/api').getApiClient() as import('axios').AxiosInstance;
 }
 

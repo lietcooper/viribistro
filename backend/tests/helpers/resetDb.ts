@@ -29,7 +29,5 @@ export async function resetDb(): Promise<void> {
   // interpolation here is not an injection risk. DDL (TRUNCATE) can't be
   // parameterised, which is why we use $executeRawUnsafe.
   const quoted = rows.map((r) => `"${r.table_name}"`).join(', ');
-  await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE;`,
-  );
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE;`);
 }

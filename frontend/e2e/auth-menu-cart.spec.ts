@@ -5,10 +5,7 @@ test.beforeEach(async ({ request }) => {
   await resetE2eState(request);
 });
 
-test('signup, menu cart sync, checkout, and order history', async ({
-  page,
-  request,
-}) => {
+test('signup, menu cart sync, checkout, and order history', async ({ page, request }) => {
   const email = `e2e-${Date.now()}@example.com`;
   const burgerId = await getMenuItemId(request, 'Wagyu Beef Burger');
 

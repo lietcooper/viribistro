@@ -60,8 +60,8 @@ export function SignupScreen({ navigation }: Props) {
     try {
       await register(email.trim(), password, name.trim());
     } catch (err) {
-      const apiMessage = (err as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message;
+      const apiMessage = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
       setError(apiMessage ?? 'Could not create your account');
     } finally {
       setSubmitting(false);
@@ -84,12 +84,8 @@ export function SignupScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ marginBottom: 36, alignItems: 'flex-start' }}>
-            <Text style={[type.hero, { color: colors.brand.primary }]}>
-              Welcome
-            </Text>
-            <Text
-              style={[type.caption, { color: colors.text.secondary, marginTop: 4 }]}
-            >
+            <Text style={[type.hero, { color: colors.brand.primary }]}>Welcome</Text>
+            <Text style={[type.caption, { color: colors.text.secondary, marginTop: 4 }]}>
               Create an account to start ordering with the AI host.
             </Text>
           </View>
@@ -125,10 +121,7 @@ export function SignupScreen({ navigation }: Props) {
             />
             <Text
               testID="signup-password-hint"
-              style={[
-                type.caption,
-                { color: colors.text.tertiary, marginTop: -8 },
-              ]}
+              style={[type.caption, { color: colors.text.tertiary, marginTop: -8 }]}
             >
               Use at least 12 characters. Long passphrases work well.
             </Text>

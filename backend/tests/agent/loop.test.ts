@@ -11,11 +11,7 @@ import {
   MAX_LOOP_ITERATIONS,
 } from '../../src/services/agent/loop.js';
 import * as cartService from '../../src/services/cart.js';
-import {
-  createFakeAnthropic,
-  textBlock,
-  toolUseBlock,
-} from './fakeAnthropic.js';
+import { createFakeAnthropic, textBlock, toolUseBlock } from './fakeAnthropic.js';
 import type Anthropic from '@anthropic-ai/sdk';
 
 const SESSION = 'loop-test-sess';
@@ -132,9 +128,7 @@ describe('runAgentLoop', () => {
     const fake1 = createFakeAnthropic();
     fake1.enqueue({
       stop_reason: 'tool_use',
-      content: [
-        toolUseBlock('tu_clr', 'clarify', { question: 'Red or white?' }),
-      ],
+      content: [toolUseBlock('tu_clr', 'clarify', { question: 'Red or white?' })],
     });
 
     const menu = await loadMenuSnapshot();
@@ -157,7 +151,9 @@ describe('runAgentLoop', () => {
       role: 'assistant',
       content: 'Red or white?',
     });
-    const lastBlock = (turn1.newTurnMessages[2]?.content as Array<{ type: string; tool_use_id?: string }>)[0]!;
+    const lastBlock = (
+      turn1.newTurnMessages[2]?.content as Array<{ type: string; tool_use_id?: string }>
+    )[0]!;
     expect(lastBlock.type).toBe('tool_result');
     expect(lastBlock.tool_use_id).toBe('tu_clr');
 
@@ -216,9 +212,7 @@ describe('runAgentLoop', () => {
     fake.enqueue({
       stop_reason: 'end_turn',
       content: [
-        textBlock(
-          "I don't have a table booking system, but I can help you order food.",
-        ),
+        textBlock("I don't have a table booking system, but I can help you order food."),
       ],
     });
 
@@ -543,9 +537,7 @@ describe('extractSuggestions', () => {
   });
 
   it('caps suggestions at 4 entries', () => {
-    const r = extractSuggestions(
-      'x\n<SUGGEST>["a","b","c","d","e","f"]</SUGGEST>',
-    );
+    const r = extractSuggestions('x\n<SUGGEST>["a","b","c","d","e","f"]</SUGGEST>');
     expect(r.suggestions).toHaveLength(4);
   });
 

@@ -24,9 +24,7 @@ import { prisma } from '../../lib/prisma.js';
  * runner's `priorMessages` argument without any reshaping. One round-trip
  * via include.
  */
-export async function loadHistory(
-  sessionId: string,
-): Promise<Anthropic.MessageParam[]> {
+export async function loadHistory(sessionId: string): Promise<Anthropic.MessageParam[]> {
   const conv = await prisma.conversation.findUnique({
     where: { sessionId },
     select: {
@@ -116,9 +114,7 @@ function messageRoleForDb(m: Anthropic.MessageParam): 'user' | 'assistant' {
   return m.role === 'assistant' ? 'assistant' : 'user';
 }
 
-function contentToJson(
-  content: Anthropic.MessageParam['content'],
-): Prisma.InputJsonValue {
+function contentToJson(content: Anthropic.MessageParam['content']): Prisma.InputJsonValue {
   // Anthropic accepts either a string or a ContentBlockParam[] for
   // MessageParam.content. Both are JSON-safe.
   return content as unknown as Prisma.InputJsonValue;

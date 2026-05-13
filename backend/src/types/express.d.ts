@@ -8,7 +8,6 @@ import type { TokenPayload as _TokenPayload } from '../services/auth.js';
 
 declare global {
   namespace Express {
-    // eslint-disable-next-line @typescript-eslint/no-empty-interface
     interface User extends Record<string, unknown> {}
   }
 }

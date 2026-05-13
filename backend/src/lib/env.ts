@@ -13,10 +13,7 @@ const EnvSchema = z
       .min(32, 'JWT_SECRET must be at least 32 chars (use `openssl rand -hex 32`)'),
     JWT_REFRESH_SECRET: z
       .string()
-      .min(
-        32,
-        'JWT_REFRESH_SECRET must be at least 32 chars (use `openssl rand -hex 32`)',
-      ),
+      .min(32, 'JWT_REFRESH_SECRET must be at least 32 chars (use `openssl rand -hex 32`)'),
 
     // OAuth values may be blank in dev — Google routes will 503 if missing.
     GOOGLE_CLIENT_ID: z.string().default(''),
@@ -38,9 +35,7 @@ const EnvSchema = z
     ANTHROPIC_MODEL: z.string().min(1).default('claude-sonnet-4-6'),
 
     PORT: z.coerce.number().int().positive().default(3000),
-    NODE_ENV: z
-      .enum(['development', 'test', 'production'])
-      .default('development'),
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     FRONTEND_URL: z.string().url(),
     E2E_FAKE_AI: z.coerce.boolean().default(false),
   })
@@ -64,7 +59,9 @@ export type Env = z.infer<typeof EnvSchema>;
  * Parse and validate env. Pass an explicit source for tests; defaults to
  * `process.env`. Throws an aggregated, human-readable error on missing vars.
  */
-export function loadEnv(source: NodeJS.ProcessEnv | Record<string, unknown> = process.env): Env {
+export function loadEnv(
+  source: NodeJS.ProcessEnv | Record<string, unknown> = process.env,
+): Env {
   const parsed = EnvSchema.safeParse(source);
   if (!parsed.success) {
     const issues = parsed.error.issues

@@ -18,6 +18,7 @@ import { runAgentLoop } from '../services/agent/loop.js';
 import { getAnthropicClient } from '../services/agent/anthropic.js';
 import {
   appendTurn,
+  clearHistory,
   loadHistory,
 } from '../services/agent/persistence.js';
 import type { MenuSnapshotItem } from '../services/agent/systemPrompt.js';
@@ -124,5 +125,18 @@ chatRouter.get(
     const { sessionId } = req.params as { sessionId: string };
     const messages = await loadHistory(sessionId);
     res.json({ messages });
+  },
+);
+
+// "New chat" — wipes the persisted Message rows for this sessionId but
+// keeps the Conversation row + cart intact. Anonymous (no auth) by
+// design: the chat itself is anonymous, so its reset path is too.
+chatRouter.delete(
+  '/history/:sessionId',
+  validate({ params: ChatHistoryParamsSchema }),
+  async (req, res) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const deleted = await clearHistory(sessionId);
+    res.json({ deleted });
   },
 );

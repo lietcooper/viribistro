@@ -8,6 +8,7 @@ import { prisma } from '../../src/lib/prisma.js';
 import {
   loadHistory,
   appendTurn,
+  clearHistory,
 } from '../../src/services/agent/persistence.js';
 
 const SESSION = 'persistence-test-sess';
@@ -187,6 +188,39 @@ describe('agent persistence', () => {
       select: { sequence: true },
     });
     expect(rows.map((r) => r.sequence)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('clearHistory wipes messages but keeps the conversation row + userId link', async () => {
+    // Anonymous turn first, then attach to a user — clearHistory should leave
+    // the userId link in place so the next turn re-uses the same conversation.
+    await appendTurn(SESSION, null, [
+      { role: 'user', content: 'one' },
+      { role: 'assistant', content: 'first reply' },
+    ]);
+    const user = await prisma.user.create({
+      data: { email: 'clear@example.com', name: 'Clear Test', provider: 'local' },
+    });
+    await appendTurn(SESSION, user.id, [
+      { role: 'user', content: 'two' },
+      { role: 'assistant', content: 'second reply' },
+    ]);
+
+    const deleted = await clearHistory(SESSION);
+    expect(deleted).toBe(4);
+
+    const reloaded = await loadHistory(SESSION);
+    expect(reloaded).toEqual([]);
+
+    const conv = await prisma.conversation.findUnique({
+      where: { sessionId: SESSION },
+    });
+    expect(conv).not.toBeNull();
+    expect(conv?.userId).toBe(user.id);
+  });
+
+  it('clearHistory returns 0 and does not throw when no conversation exists', async () => {
+    const deleted = await clearHistory('no-such-session');
+    expect(deleted).toBe(0);
   });
 
   it('attaches the conversation to the user when a userId is supplied later', async () => {

@@ -35,6 +35,11 @@ export interface ChatState {
   error: string | null;
   sendMessage: (text: string) => Promise<void>;
   resetSession: () => void;
+  // "New chat" — wipes the server-side history for this sessionId and
+  // clears the local thread. Same sessionId stays, so the cart is
+  // unaffected (separate concern). Surfaces a toast on failure but
+  // still resets the local thread so the UI never gets stuck.
+  clearHistory: () => Promise<void>;
 }
 
 const FALLBACK_REPLY =
@@ -122,5 +127,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   resetSession() {
     set({ messages: [], isTyping: false, error: null });
+  },
+
+  async clearHistory() {
+    const { sessionId } = get();
+    // Optimistically clear the local thread so the UI feels instant.
+    set({ messages: [], isTyping: false, error: null });
+    try {
+      await getApiClient().delete(`/api/chat/history/${sessionId}`);
+    } catch (err) {
+      // The local thread is already cleared; warn so the user knows
+      // the server may still hold the old history (it would replay on
+      // the next message).
+      console.warn('[chat] clearHistory failed:', err);
+      useToastStore
+        .getState()
+        .show("Cleared locally, but couldn't reach the server.", 'error');
+    }
   },
 }));

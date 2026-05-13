@@ -56,11 +56,11 @@ describe('POST /api/chat', () => {
   beforeEach(async () => {
     fake = createFakeAnthropic();
     setAnthropicClient(fake);
-    cartService.clearCart('chat-sess-1');
-    cartService.clearCart('chat-sess-2');
-    cartService.clearCart('chat-sess-multi');
-    cartService.clearCart('chat-sess-ambig');
-    cartService.clearCart('chat-sess-off');
+    await cartService.clearCart('chat-sess-1');
+    await cartService.clearCart('chat-sess-2');
+    await cartService.clearCart('chat-sess-multi');
+    await cartService.clearCart('chat-sess-ambig');
+    await cartService.clearCart('chat-sess-off');
     await prisma.message.deleteMany({});
     await prisma.conversation.deleteMany({});
   });
@@ -88,7 +88,7 @@ describe('POST /api/chat', () => {
     expect(res.body.cartUpdate.items[0].quantity).toBe(1);
 
     // Cart was actually mutated.
-    expect(cartService.getCart('chat-sess-1').items[0]?.menuItemId).toBe(burgerId);
+    expect((await cartService.getCart('chat-sess-1')).items[0]?.menuItemId).toBe(burgerId);
 
     // 4 messages were persisted: user → assistant(tool_use) → user(tool_result) → assistant(text).
     const conv = await prisma.conversation.findUnique({
@@ -166,7 +166,7 @@ describe('POST /api/chat', () => {
     expect(res.body.cartUpdate).toBeNull();
     expect(res.body.toolsUsed.map((t: { name: string }) => t.name)).toEqual(['clarify']);
     // Cart untouched.
-    expect(cartService.getCart('chat-sess-ambig').items).toEqual([]);
+    expect((await cartService.getCart('chat-sess-ambig')).items).toEqual([]);
   });
 
   it('multi-turn: "actually make that three" uses prior history to call modify_item', async () => {
@@ -385,5 +385,57 @@ describe('GET /api/chat/history/:sessionId', () => {
     const res = await request(app).get('/api/chat/history/never-seen');
     expect(res.status).toBe(200);
     expect(res.body.messages).toEqual([]);
+  });
+});
+
+describe('DELETE /api/chat/history/:sessionId', () => {
+  beforeAll(async () => {
+    await resetDb();
+    await seedMenu(prisma);
+  });
+
+  afterAll(async () => {
+    setAnthropicClient(undefined);
+    await resetDb();
+    await prisma.$disconnect();
+  });
+
+  beforeEach(async () => {
+    await prisma.message.deleteMany({});
+    await prisma.conversation.deleteMany({});
+  });
+
+  it('wipes message rows for the session but preserves the conversation', async () => {
+    await appendTurn('clear-sess-1', null, [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ]);
+
+    const app = await buildTestApp();
+    const res = await request(app).delete('/api/chat/history/clear-sess-1');
+    expect(res.status).toBe(200);
+    expect(res.body.deleted).toBe(2);
+
+    const after = await request(app).get('/api/chat/history/clear-sess-1');
+    expect(after.body.messages).toEqual([]);
+
+    const conv = await prisma.conversation.findUnique({
+      where: { sessionId: 'clear-sess-1' },
+    });
+    expect(conv).not.toBeNull();
+  });
+
+  it('returns deleted: 0 for an unknown sessionId without erroring', async () => {
+    const app = await buildTestApp();
+    const res = await request(app).delete('/api/chat/history/never-seen');
+    expect(res.status).toBe(200);
+    expect(res.body.deleted).toBe(0);
+  });
+
+  it('400s when sessionId fails validation', async () => {
+    const app = await buildTestApp();
+    const res = await request(app).delete('/api/chat/history/' + '!'.repeat(5));
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 });

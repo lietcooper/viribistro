@@ -86,6 +86,27 @@ export async function appendTurn(
   });
 }
 
+/**
+ * Wipe every Message row for the given sessionId while keeping the
+ * Conversation row itself. This is what the frontend's "New chat" button
+ * triggers — the user wants a fresh thread but we still want the same
+ * sessionId to keep linking to the same user (and to anything else keyed
+ * by sessionId, like the cart). Returns the number of rows deleted so
+ * callers / tests can assert against it. A no-op (returns 0) if no
+ * conversation exists for the session.
+ */
+export async function clearHistory(sessionId: string): Promise<number> {
+  const conv = await prisma.conversation.findUnique({
+    where: { sessionId },
+    select: { id: true },
+  });
+  if (!conv) return 0;
+  const result = await prisma.message.deleteMany({
+    where: { conversationId: conv.id },
+  });
+  return result.count;
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function messageRoleForDb(m: Anthropic.MessageParam): 'user' | 'assistant' {

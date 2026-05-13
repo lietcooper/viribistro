@@ -3,7 +3,7 @@ import { act } from '@testing-library/react-native';
 import { useCartStore } from '@/stores/useCartStore';
 import { useChatStore } from '@/stores/useChatStore';
 
-const mockClient = { post: jest.fn() };
+const mockClient = { post: jest.fn(), delete: jest.fn() };
 
 jest.mock('@/lib/api', () => ({
   getApiClient: () => mockClient,
@@ -11,6 +11,7 @@ jest.mock('@/lib/api', () => ({
 
 beforeEach(() => {
   mockClient.post.mockReset();
+  mockClient.delete.mockReset();
   useChatStore.setState({
     sessionId: 'test-session',
     messages: [],
@@ -125,5 +126,38 @@ describe('useChatStore', () => {
     expect(s.messages).toEqual([]);
     expect(s.isTyping).toBe(false);
     expect(s.error).toBeNull();
+  });
+
+  it('clearHistory wipes local thread and DELETEs server-side history', async () => {
+    useChatStore.setState({
+      sessionId: 'clear-sess',
+      messages: [
+        { id: 'a', role: 'user', content: 'one', createdAt: 1 },
+        { id: 'b', role: 'assistant', content: 'reply', createdAt: 2 },
+      ],
+    });
+    mockClient.delete.mockResolvedValueOnce({ data: { deleted: 2 } });
+
+    await act(async () => {
+      await useChatStore.getState().clearHistory();
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(mockClient.delete).toHaveBeenCalledWith(
+      '/api/chat/history/clear-sess',
+    );
+  });
+
+  it('clearHistory still resets locally when the network call fails', async () => {
+    useChatStore.setState({
+      messages: [{ id: 'a', role: 'user', content: 'x', createdAt: 1 }],
+    });
+    mockClient.delete.mockRejectedValueOnce(new Error('offline'));
+
+    await act(async () => {
+      await useChatStore.getState().clearHistory();
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
   });
 });

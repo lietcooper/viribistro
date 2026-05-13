@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import { ChatScreen } from '@/screens/ChatScreen';
 import { useChatStore } from '@/stores/useChatStore';
 import { useCartStore } from '@/stores/useCartStore';
 
-const mockClient = { post: jest.fn() };
+const mockClient = { post: jest.fn(), delete: jest.fn() };
 
 jest.mock('@/lib/api', () => ({
   getApiClient: () => mockClient,
@@ -12,6 +13,7 @@ jest.mock('@/lib/api', () => ({
 
 beforeEach(() => {
   mockClient.post.mockReset();
+  mockClient.delete.mockReset();
   useChatStore.setState({
     sessionId: 'test-session',
     messages: [],
@@ -103,5 +105,34 @@ describe('ChatScreen', () => {
     fireEvent.changeText(screen.getByTestId('chat-input'), '   ');
     fireEvent.press(screen.getByTestId('chat-send'));
     expect(mockClient.post).not.toHaveBeenCalled();
+  });
+
+  it('tapping the New chat button confirms then clears the thread via the API', async () => {
+    // Default Platform.OS in jest-expo is ios, so the confirm path goes
+    // through Alert.alert. Stub it to immediately fire the destructive
+    // button so we can assert the wiring without a real prompt.
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation((_title, _msg, buttons) => {
+        const ok = (buttons ?? []).find((b) => b.style === 'destructive');
+        ok?.onPress?.();
+      });
+    mockClient.delete.mockResolvedValueOnce({ data: { deleted: 1 } });
+
+    useChatStore.setState({
+      messages: [{ id: 'a', role: 'user', content: 'old', createdAt: 1 }],
+    });
+
+    render(<ChatScreen />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('chat-new'));
+    });
+
+    expect(mockClient.delete).toHaveBeenCalledWith(
+      '/api/chat/history/test-session',
+    );
+    expect(useChatStore.getState().messages).toEqual([]);
+
+    alertSpy.mockRestore();
   });
 });

@@ -93,3 +93,4 @@ Desktop.ini
 # ─── Claude Code local scaffolding ───────────────────────────────────────────
 .claude/settings.local.json
 .claude/*.local.*
+**agent-memory

@@ -1,24 +1,24 @@
 // Horizontal pill bar shown only when the conversation is empty. Tapping
 // a chip is the same as typing it and tapping send — the chip scales
 // briefly on press so the action feels confirmed before the round-trip.
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
 } from 'react-native-reanimated';
-import { Pressable } from 'react-native';
 
 import { colors } from '@/theme/colors';
 import { springs } from '@/theme/motion';
 
+// Per the project brief: the four canonical suggested prompts when the
+// conversation is empty. Keep this list aligned with CLAUDE.md.
 const PROMPTS = [
   "What's on the menu?",
   'Recommend something spicy',
   "Add the chef's special",
   "What's in my cart?",
-  'Surprise me',
 ];
 
 interface SuggestedPromptChipsProps {

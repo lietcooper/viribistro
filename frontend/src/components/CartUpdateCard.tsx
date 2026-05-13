@@ -7,6 +7,7 @@ import { Text, View } from 'react-native';
 
 import { colors } from '@/theme/colors';
 import { formatMoney } from '@/lib/format';
+import { lineTotal } from '@/stores/useCartStore';
 import { type } from '@/theme/typography';
 import type { Cart } from '@/types/api';
 
@@ -47,7 +48,7 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
             {it.quantity} × {it.name}
           </Text>
           <Text style={[type.caption, { color: colors.text.secondary }]}>
-            {formatMoney(Number(it.unitPrice) * it.quantity)}
+            {formatMoney(lineTotal(it.unitPrice, it.quantity))}
           </Text>
         </View>
       ))}

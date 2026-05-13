@@ -24,19 +24,37 @@ export interface CartState {
 }
 
 // 2-decimal Postgres Decimal math, mirroring backend services/cart.ts so
-// the wire total and the locally-computed total never disagree.
+// the wire total and the locally-computed total never disagree. Always
+// returns two decimal places — whole-dollar totals come back as "33.00",
+// not "33", so the format matches the server's reconcile payload.
+function priceToCents(price: string): bigint {
+  const [intPart, fracPart = ''] = price.split('.');
+  return BigInt(intPart ?? '0') * 100n + BigInt((fracPart + '00').slice(0, 2));
+}
+
+function centsToDecimal(totalCents: bigint): string {
+  const whole = totalCents / 100n;
+  const frac = totalCents % 100n;
+  return `${whole.toString()}.${frac.toString().padStart(2, '0')}`;
+}
+
 export function computeTotal(items: CartItem[]): string {
   let totalCents = 0n;
   for (const item of items) {
-    const [intPart, fracPart = ''] = item.unitPrice.split('.');
-    const cents =
-      BigInt(intPart ?? '0') * 100n + BigInt((fracPart + '00').slice(0, 2));
-    totalCents += cents * BigInt(item.quantity);
+    totalCents += priceToCents(item.unitPrice) * BigInt(item.quantity);
   }
-  const whole = totalCents / 100n;
-  const frac = totalCents % 100n;
-  if (frac === 0n) return whole.toString();
-  return `${whole.toString()}.${frac.toString().padStart(2, '0')}`;
+  return centsToDecimal(totalCents);
+}
+
+/**
+ * Per-row subtotal using the same integer-cents math as computeTotal,
+ * so price displays never disagree with the cart total. Used by
+ * CartUpdateCard and OrdersScreen for line-item displays. Returns a
+ * 2-decimal string suitable for formatMoney.
+ */
+export function lineTotal(unitPrice: string, quantity: number): string {
+  if (quantity <= 0) return '0.00';
+  return centsToDecimal(priceToCents(unitPrice) * BigInt(quantity));
 }
 
 function withTotal(items: CartItem[]) {
@@ -45,7 +63,7 @@ function withTotal(items: CartItem[]) {
 
 export const useCartStore = create<CartState>((set) => ({
   items: [],
-  total: '0',
+  total: '0.00',
 
   addItem({ menuItemId, name, unitPrice }, quantity = 1) {
     if (quantity <= 0) return;
@@ -80,7 +98,7 @@ export const useCartStore = create<CartState>((set) => ({
   },
 
   clearCart() {
-    set({ items: [], total: '0' });
+    set({ items: [], total: '0.00' });
   },
 
   reconcile(cart) {

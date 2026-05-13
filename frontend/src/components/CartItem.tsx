@@ -30,6 +30,8 @@ export function CartItem({ item }: CartItemProps) {
     <Pressable
       onPress={handleRemove}
       testID={`cart-row-swipe-delete-${item.menuItemId}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Remove ${item.name} from cart`}
       style={{
         backgroundColor: colors.error,
         alignItems: 'center',
@@ -39,7 +41,7 @@ export function CartItem({ item }: CartItemProps) {
         borderRadius: 12,
       }}
     >
-      <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+      <Ionicons name="trash-outline" size={20} color={colors.text.inverse} />
     </Pressable>
   );
 
@@ -81,6 +83,8 @@ export function CartItem({ item }: CartItemProps) {
           <Pressable
             testID={`cart-row-decrement-${item.menuItemId}`}
             onPress={() => modifyItem(item.menuItemId, item.quantity - 1)}
+            accessibilityRole="button"
+            accessibilityLabel={`Decrease quantity of ${item.name}`}
             style={{
               width: 28,
               height: 28,
@@ -107,6 +111,8 @@ export function CartItem({ item }: CartItemProps) {
           <Pressable
             testID={`cart-row-increment-${item.menuItemId}`}
             onPress={() => modifyItem(item.menuItemId, item.quantity + 1)}
+            accessibilityRole="button"
+            accessibilityLabel={`Increase quantity of ${item.name}`}
             style={{
               width: 28,
               height: 28,
@@ -121,6 +127,8 @@ export function CartItem({ item }: CartItemProps) {
           <Pressable
             testID={`cart-row-remove-${item.menuItemId}`}
             onPress={handleRemove}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${item.name} from cart`}
             hitSlop={8}
             style={{ marginLeft: 4 }}
           >

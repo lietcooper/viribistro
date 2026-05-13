@@ -23,6 +23,7 @@ import Animated, {
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { getApiClient } from '@/lib/api';
 import { formatMoney } from '@/lib/format';
+import { lineTotal } from '@/stores/useCartStore';
 import { colors } from '@/theme/colors';
 import { springs } from '@/theme/motion';
 import { shadows } from '@/theme/shadows';
@@ -153,7 +154,7 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
                   {it.quantity} × {nameById.get(it.menuItemId) ?? 'Item'}
                 </Text>
                 <Text style={[type.caption, { color: colors.text.secondary }]}>
-                  {formatMoney(Number(it.unitPrice) * it.quantity)}
+                  {formatMoney(lineTotal(it.unitPrice, it.quantity))}
                 </Text>
               </View>
             ))}
@@ -229,11 +230,13 @@ export function OrdersScreen() {
     [menu],
   );
 
-  const onRefresh = async () => {
+  // Memoized so the RefreshControl doesn't get a fresh function reference
+  // on every render (matches the already-memoized `load`).
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load();
     setRefreshing(false);
-  };
+  }, [load]);
 
   return (
     <ScreenContainer>

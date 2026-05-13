@@ -39,6 +39,9 @@ export function MenuFilterBar({ value, onChange }: MenuFilterBarProps) {
             key={chip.value}
             testID={`filter-${chip.value}`}
             onPress={() => onChange(chip.value)}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter by ${chip.label}`}
+            accessibilityState={{ selected: active }}
             style={{
               paddingHorizontal: 16,
               paddingVertical: 8,

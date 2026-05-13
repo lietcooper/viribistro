@@ -23,6 +23,7 @@ import axios, {
 
 import { getApiBaseUrl } from './env';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useToastStore } from '@/stores/useToastStore';
 import type { AuthResponse } from '@/types/api';
 
 // Request configs are augmented with a flag so we only retry once.
@@ -103,6 +104,18 @@ export function createApiClient(opts: CreateApiClientOptions = {}): AxiosInstanc
         original._retry ||
         original.headers?.['x-skip-auth-refresh'] === '1'
       ) {
+        // Surface non-401 failures as a toast so the user never gets
+        // a silent dead-end. Auth flow handles its own messaging via
+        // the auth store's `error` field, so skip the toast there.
+        const url = original?.url ?? '';
+        const isAuthCall = url.startsWith('/auth/');
+        if (!isAuthCall && status !== 401) {
+          const msg =
+            status && status >= 500
+              ? "The bistro's kitchen is overwhelmed — try again in a moment."
+              : 'Something went wrong. Please try again.';
+          useToastStore.getState().show(msg, 'error');
+        }
         return Promise.reject(error);
       }
 

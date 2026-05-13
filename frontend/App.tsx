@@ -11,6 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator } from 'react-native';
 
 import { RootNavigator } from '@/navigation/RootNavigator';
+import { Toast } from '@/components/Toast';
 import { colors } from '@/theme/colors';
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <RootNavigator />
+        <Toast />
         <StatusBar style="dark" />
       </SafeAreaProvider>
     </GestureHandlerRootView>

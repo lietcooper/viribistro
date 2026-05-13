@@ -61,13 +61,13 @@ export type OrderStatus = 'pending' | 'confirmed';
 export interface OrderItem {
   id: string;
   menuItemId: string;
-  name: string;
   quantity: number;
   unitPrice: string;
 }
 
 export interface Order {
   id: string;
+  userId?: string;
   status: OrderStatus;
   totalPrice: string;
   createdAt: string;

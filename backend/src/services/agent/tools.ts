@@ -1,0 +1,308 @@
+// Tool definitions for the AI agent.
+//
+// `toolSchemas` is the array we pass to Anthropic's `messages.create({ tools })`.
+// Each tool's JSON schema is mirrored by a Zod schema in `toolInputZod` so the
+// dispatcher can validate the *parsed* tool input the SDK hands us before we
+// touch the cart service — Anthropic does not enforce JSON schemas on the
+// server side, only nudges the model with them.
+//
+// Tools intentionally mirror the verbs in CLAUDE.md (line 95-101).
+// The cart-mutating tools wrap services/cart.ts so REST and chat operate on
+// the same in-memory store (no duplication).
+import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
+import { AppError } from '../../lib/AppError.js';
+import * as cart from '../cart.js';
+
+export const toolSchemas: Anthropic.Tool[] = [
+  {
+    name: 'add_to_cart',
+    description:
+      'Add a menu item to the cart by its exact menuItemId. Quantity defaults to 1. ' +
+      'Stacks with any existing quantity for the same item.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        itemId: {
+          type: 'string',
+          description: 'The exact menu item ID from the menu snapshot in the system prompt.',
+        },
+        quantity: {
+          type: 'integer',
+          minimum: 1,
+          description: 'How many to add. Defaults to 1 if omitted.',
+        },
+      },
+      required: ['itemId'],
+    },
+  },
+  {
+    name: 'remove_from_cart',
+    description:
+      "Remove a single menu item from the cart entirely (regardless of quantity).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        itemId: {
+          type: 'string',
+          description: 'The exact menu item ID to remove from the cart.',
+        },
+      },
+      required: ['itemId'],
+    },
+  },
+  {
+    name: 'modify_item',
+    description:
+      "Set the cart quantity for a menu item to an exact new value. " +
+      "A newQuantity of 0 removes the item. If the item isn't in the cart yet and " +
+      'newQuantity is positive, it is added.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        itemId: { type: 'string' },
+        newQuantity: { type: 'integer', minimum: 0 },
+      },
+      required: ['itemId', 'newQuantity'],
+    },
+  },
+  {
+    name: 'get_cart',
+    description:
+      "Return the current cart for this session. Use this when the user asks " +
+      "what's in their cart or to confirm a running total.",
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_menu',
+    description:
+      'Return the live menu, optionally filtered to a category. The menu in the ' +
+      'system prompt is already injected, so call this only if you need a refreshed ' +
+      'snapshot or a category-scoped view.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          enum: ['starters', 'mains', 'desserts', 'drinks'],
+          description: 'Optional category filter.',
+        },
+      },
+    },
+  },
+  {
+    name: 'clarify',
+    description:
+      "Ask the user a follow-up question when their request is ambiguous (e.g. " +
+      'they say "a burger" and two burgers exist) instead of guessing. This ENDS ' +
+      "the current turn — the question is shown to the user as your reply.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The follow-up question to show the user. Be specific and name the candidates.',
+        },
+      },
+      required: ['question'],
+    },
+  },
+];
+
+// Runtime validation for what the SDK actually hands us (already-parsed JSON).
+// Anthropic's SDK does not enforce the `input_schema`, so we MUST validate
+// before mutating the cart.
+const Category = z.enum(['starters', 'mains', 'desserts', 'drinks']);
+
+export const toolInputZod = {
+  add_to_cart: z.object({
+    itemId: z.string().min(1),
+    quantity: z.number().int().positive().optional(),
+  }),
+  remove_from_cart: z.object({
+    itemId: z.string().min(1),
+  }),
+  modify_item: z.object({
+    itemId: z.string().min(1),
+    newQuantity: z.number().int().min(0),
+  }),
+  get_cart: z.object({}).passthrough(),
+  get_menu: z.object({
+    category: Category.optional(),
+  }),
+  clarify: z.object({
+    question: z.string().min(1),
+  }),
+} as const;
+
+export type ToolName = keyof typeof toolInputZod;
+
+// ─── Dispatcher (introduced in step 3) ─────────────────────────────────────
+//
+// Two outcome shapes:
+//   - `tool_result` block to feed back to the model
+//   - `clarify` short-circuit marker the loop runner intercepts
+export type DispatchResult =
+  | {
+      type: 'tool_result';
+      tool_use_id: string;
+      content: string;
+      is_error?: boolean;
+      // Surface which tool produced it (for `toolsUsed` accounting + tests).
+      toolName: ToolName;
+      // Did this tool mutate the cart? Drives the `cartUpdate` field on the
+      // response envelope.
+      mutated: boolean;
+    }
+  | {
+      type: 'clarify';
+      question: string;
+      toolName: 'clarify';
+    };
+
+export interface DispatchContext {
+  sessionId: string;
+}
+
+interface ToolUseLike {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+/**
+ * Execute a single tool_use block. Validates input with Zod first; on failure
+ * returns an `is_error: true` tool_result so the model can recover (per
+ * CLAUDE.md line 17: no silent failures, but recoverable errors stay in-loop).
+ */
+export async function dispatchTool(
+  block: ToolUseLike,
+  ctx: DispatchContext,
+): Promise<DispatchResult> {
+  const name = block.name as ToolName;
+
+  if (!(name in toolInputZod)) {
+    // Unknown tool is a *programmer* error (we shipped a mismatched schema).
+    // Throw so the loop's outer error handler returns a 500.
+    throw new AppError(500, 'UNKNOWN_TOOL', `LLM called unknown tool: ${block.name}`);
+  }
+
+  const schema = toolInputZod[name];
+  const parsed = schema.safeParse(block.input);
+  if (!parsed.success) {
+    return {
+      type: 'tool_result',
+      tool_use_id: block.id,
+      content: JSON.stringify({
+        error: 'INVALID_TOOL_INPUT',
+        message: 'The tool input did not match its schema. Re-read the schema and try again.',
+        issues: parsed.error.issues.map((i) => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      }),
+      is_error: true,
+      toolName: name,
+      mutated: false,
+    };
+  }
+
+  const input = parsed.data;
+
+  try {
+    switch (name) {
+      case 'add_to_cart': {
+        const { itemId, quantity = 1 } = input as z.infer<
+          (typeof toolInputZod)['add_to_cart']
+        >;
+        const next = await cart.addItem(ctx.sessionId, itemId, quantity);
+        return resultOk(block.id, name, true, { cart: next });
+      }
+      case 'remove_from_cart': {
+        const { itemId } = input as z.infer<
+          (typeof toolInputZod)['remove_from_cart']
+        >;
+        const next = cart.removeItem(ctx.sessionId, itemId);
+        return resultOk(block.id, name, true, { cart: next });
+      }
+      case 'modify_item': {
+        const { itemId, newQuantity } = input as z.infer<
+          (typeof toolInputZod)['modify_item']
+        >;
+        const next = await cart.modifyItem(ctx.sessionId, itemId, newQuantity);
+        return resultOk(block.id, name, true, { cart: next });
+      }
+      case 'get_cart': {
+        const snap = cart.getCart(ctx.sessionId);
+        return resultOk(block.id, name, false, { cart: snap });
+      }
+      case 'get_menu': {
+        const { category } = input as z.infer<
+          (typeof toolInputZod)['get_menu']
+        >;
+        const menu = await loadMenuForTool(category);
+        return resultOk(block.id, name, false, { menu });
+      }
+      case 'clarify': {
+        const { question } = input as z.infer<(typeof toolInputZod)['clarify']>;
+        return { type: 'clarify', question, toolName: 'clarify' };
+      }
+    }
+  } catch (err) {
+    // Domain errors (AppError) come from the cart service — for example,
+    // an unknown menuItemId. Feed them back to the model as a recoverable
+    // tool_result so it can apologize / ask the user, instead of crashing
+    // the request.
+    if (err instanceof AppError) {
+      return {
+        type: 'tool_result',
+        tool_use_id: block.id,
+        content: JSON.stringify({ error: err.code, message: err.message }),
+        is_error: true,
+        toolName: name,
+        mutated: false,
+      };
+    }
+    throw err;
+  }
+}
+
+function resultOk(
+  toolUseId: string,
+  toolName: ToolName,
+  mutated: boolean,
+  body: Record<string, unknown>,
+): DispatchResult {
+  return {
+    type: 'tool_result',
+    tool_use_id: toolUseId,
+    content: JSON.stringify(body),
+    toolName,
+    mutated,
+  };
+}
+
+// Lazy import to avoid a circular dep with services/menu.
+async function loadMenuForTool(
+  category?: 'starters' | 'mains' | 'desserts' | 'drinks',
+): Promise<unknown> {
+  const { prisma } = await import('../../lib/prisma.js');
+  const where = category ? { category, available: true } : { available: true };
+  const items = await prisma.menuItem.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      price: true,
+      category: true,
+      tags: true,
+    },
+    orderBy: [{ category: 'asc' }, { name: 'asc' }],
+  });
+  // Decimal → string for JSON safety.
+  return items.map((i) => ({ ...i, price: i.price.toString() }));
+}

@@ -20,7 +20,9 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = payload;
+    // Cast through unknown — Express.User is intentionally loose (see
+    // src/types/express.d.ts for why) so handlers use authedUser(req).
+    (req as { user?: unknown }).user = payload;
     next();
   } catch {
     // Expired vs malformed — same user-visible outcome (re-auth required).

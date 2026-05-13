@@ -1,4 +1,7 @@
 // Entrypoint for `node dist/server.js` (prod) and `tsx watch src/server.ts` (dev).
+// Load .env BEFORE importing env.ts so the Zod validator sees the values.
+// In production, env vars come from the platform (Railway) and dotenv is a no-op.
+import 'dotenv/config';
 import { createApp } from './app.js';
 import { env } from './lib/env.js';
 import { logger } from './lib/logger.js';

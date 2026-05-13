@@ -13,6 +13,7 @@ import {
   verifyPassword,
   signAccessToken,
   signRefreshToken,
+  verifyRefreshToken,
   REFRESH_TOKEN_TTL_SECONDS,
 } from '../services/auth.js';
 import { RegisterBodySchema, LoginBodySchema } from '../schemas/auth.js';
@@ -129,3 +130,48 @@ authRouter.post(
     res.status(200).json({ user: publicUser, accessToken });
   },
 );
+
+authRouter.post('/refresh', async (req, res) => {
+  const token = (req.cookies?.[REFRESH_COOKIE_NAME] as string | undefined) ?? '';
+  if (!token) {
+    throw new AppError(401, 'NO_REFRESH_TOKEN', 'Missing refresh token');
+  }
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(token);
+  } catch {
+    // Don't differentiate expired vs malformed in the user-facing message —
+    // both mean "your session is gone, log in again".
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token');
+  }
+
+  // Confirm the user still exists (handles deleted accounts mid-session).
+  const dbUser = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      avatarUrl: true,
+      provider: true,
+      createdAt: true,
+    },
+  });
+  if (!dbUser) {
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token');
+  }
+
+  const { accessToken, refreshToken } = issueTokens(dbUser);
+  setRefreshCookie(res, refreshToken);
+  res.status(200).json({ user: dbUser, accessToken });
+});
+
+authRouter.post('/logout', (_req, res) => {
+  // Clear with the same path + sameSite as we set, so the browser actually
+  // matches and removes it. clearCookie ignores maxAge — it always emits
+  // Max-Age=0 / Expires=Thu, 01 Jan 1970.
+  const { maxAge: _maxAge, ...clearOpts } = refreshCookieOptions();
+  res.clearCookie(REFRESH_COOKIE_NAME, clearOpts);
+  res.status(204).end();
+});

@@ -3,6 +3,7 @@
 // Cost factor 12 is the CLAUDE.md-mandated minimum. bcrypt's API is async;
 // we await everywhere so we never block the event loop on a busy server.
 import bcrypt from 'bcrypt';
+import { randomBytes } from 'node:crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { env } from '../lib/env.js';
 
@@ -50,7 +51,10 @@ export function verifyAccessToken(token: string): TokenPayload {
 }
 
 export function signRefreshToken(payload: TokenPayload): string {
-  return sign(payload, env.JWT_REFRESH_SECRET, REFRESH_TOKEN_TTL_SECONDS);
+  // Add a random jti so two refresh tokens issued in the same second
+  // (e.g. on rapid rotation) are not byte-identical.
+  const withJti = { ...payload, jti: randomBytes(8).toString('hex') };
+  return sign(withJti, env.JWT_REFRESH_SECRET, REFRESH_TOKEN_TTL_SECONDS);
 }
 
 export function verifyRefreshToken(token: string): TokenPayload {

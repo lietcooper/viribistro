@@ -26,27 +26,29 @@ describe('SignupScreen', () => {
     render(<SignupScreen navigation={makeNav() as any} route={{} as any} />);
     fireEvent.changeText(screen.getByTestId('signup-name'), 'Alice');
     fireEvent.changeText(screen.getByTestId('signup-email'), 'a@b.com');
-    fireEvent.changeText(screen.getByTestId('signup-password'), 'hunter22');
+    fireEvent.changeText(screen.getByTestId('signup-password'), 'hunter22hunter22');
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('signup-submit'));
     });
 
-    expect(getRegister()).toHaveBeenCalledWith('a@b.com', 'hunter22', 'Alice');
+    expect(getRegister()).toHaveBeenCalledWith('a@b.com', 'hunter22hunter22', 'Alice');
   });
 
   it('blocks submit with an inline message when the password is too short', async () => {
     render(<SignupScreen navigation={makeNav() as any} route={{} as any} />);
     fireEvent.changeText(screen.getByTestId('signup-name'), 'Alice');
     fireEvent.changeText(screen.getByTestId('signup-email'), 'a@b.com');
-    fireEvent.changeText(screen.getByTestId('signup-password'), 'short');
+    fireEvent.changeText(screen.getByTestId('signup-password'), 'too-short');
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('signup-submit'));
     });
 
     expect(getRegister()).not.toHaveBeenCalled();
-    expect(screen.getByText('Password must be at least 8 characters')).toBeTruthy();
+    expect(
+      screen.getByText('Password must be at least 12 characters'),
+    ).toBeTruthy();
   });
 
   it('navigates to Login when the sign-in link is tapped', () => {
@@ -79,7 +81,7 @@ describe('SignupScreen', () => {
     render(<SignupScreen navigation={makeNav() as any} route={{} as any} />);
     fireEvent.changeText(screen.getByTestId('signup-name'), 'Alice');
     fireEvent.changeText(screen.getByTestId('signup-email'), 'a@b.com');
-    fireEvent.changeText(screen.getByTestId('signup-password'), 'hunter22');
+    fireEvent.changeText(screen.getByTestId('signup-password'), 'hunter22hunter22');
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('signup-submit'));
@@ -93,7 +95,7 @@ describe('SignupScreen', () => {
     render(<SignupScreen navigation={makeNav() as any} route={{} as any} />);
     fireEvent.changeText(screen.getByTestId('signup-name'), 'Alice');
     fireEvent.changeText(screen.getByTestId('signup-email'), 'a@b.com');
-    fireEvent.changeText(screen.getByTestId('signup-password'), 'hunter22');
+    fireEvent.changeText(screen.getByTestId('signup-password'), 'hunter22hunter22');
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('signup-submit'));

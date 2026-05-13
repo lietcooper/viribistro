@@ -34,10 +34,16 @@ export function SignupScreen({ navigation }: Props) {
 
   const register = useAuthStore((s) => s.register);
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setGoogleRedirecting(true);
     setError(null);
-    openGoogleOAuth();
+    try {
+      await openGoogleOAuth();
+    } catch {
+      // openGoogleOAuth already surfaced a toast; clear the in-flight
+      // flag so the button isn't permanently stuck in its loading state.
+      setGoogleRedirecting(false);
+    }
   };
 
   const submit = async () => {
@@ -46,8 +52,8 @@ export function SignupScreen({ navigation }: Props) {
       setError('Name, email and password are all required');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters');
       return;
     }
     setSubmitting(true);
@@ -113,10 +119,19 @@ export function SignupScreen({ navigation }: Props) {
               onChangeText={setPassword}
               secureTextEntry
               autoComplete="password-new"
-              placeholder="At least 8 characters"
+              placeholder="At least 12 characters"
               testID="signup-password"
               error={error}
             />
+            <Text
+              testID="signup-password-hint"
+              style={[
+                type.caption,
+                { color: colors.text.tertiary, marginTop: -8 },
+              ]}
+            >
+              Use at least 12 characters. Long passphrases work well.
+            </Text>
           </View>
 
           <View style={{ marginTop: 24, gap: 12 }}>

@@ -18,7 +18,11 @@ const EnvSchema = z.object({
     .url()
     .default('http://localhost:3000/auth/google/callback'),
 
-  ANTHROPIC_API_KEY: z.string().default(''),
+  // Required so /api/chat can boot. Tests load a dummy value via .env.test.
+  ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
+  // Configurable so newer Sonnet snapshots are swappable without a code
+  // change. The default tracks the current Sonnet — see docs/plans/ai-agent.md.
+  ANTHROPIC_MODEL: z.string().min(1).default('claude-sonnet-4-6'),
 
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z

@@ -6,11 +6,11 @@
 //   - POST /api/orders { sessionId }
 //   - On success: clear the cart, close the drawer, ask the navigator
 //     to show the success screen via the `onOrderPlaced` callback.
-//   - On 401 (or auth gate failure): surface an inline error.
-import { useEffect } from 'react';
+//   - On failure: surface an inline error row + a toast so the user
+//     never sees a silent dead-end.
+import { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   Text,
@@ -32,6 +32,7 @@ import { getSessionId } from '@/lib/session';
 import { formatMoney } from '@/lib/format';
 import { useCartStore, useCartTotal } from '@/stores/useCartStore';
 import { useCartUiStore } from '@/stores/useCartUiStore';
+import { useToastStore } from '@/stores/useToastStore';
 import { colors } from '@/theme/colors';
 import { springs } from '@/theme/motion';
 import { shadows } from '@/theme/shadows';
@@ -52,8 +53,17 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   const { total, itemCount } = useCartTotal();
   const reducedMotion = useReducedMotion();
 
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
   const translateY = useSharedValue(sheetHeight);
   const overlayOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    // Clear stale checkout errors whenever the drawer opens — a fresh
+    // session shouldn't start with last attempt's failure on screen.
+    if (open) setCheckoutError(null);
+  }, [open]);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -74,44 +84,53 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayOpacity.value }));
 
   const handleCheckout = async () => {
+    if (checkoutLoading) return;
+    setCheckoutError(null);
+    setCheckoutLoading(true);
     try {
       await getApiClient().post('/api/orders', { sessionId: getSessionId() });
       clearCart();
       closeDrawer();
       onOrderPlaced?.();
-    } catch {
-      // Surface a passive error — caller will see it via toast / inline.
-      // Intentionally not throwing here keeps the drawer responsive even
-      // when checkout fails (e.g. unauthenticated guest checkout).
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const message =
+        status === 401
+          ? 'Please sign in again to place this order.'
+          : "We couldn't place your order — please try again.";
+      setCheckoutError(message);
+      useToastStore.getState().show(message, 'error');
+    } finally {
+      setCheckoutLoading(false);
     }
   };
 
   return (
     <>
-      {open ? (
-        <Pressable
-          onPress={closeDrawer}
-          testID="cart-overlay"
-          style={{
+      <Animated.View
+        pointerEvents={open ? 'auto' : 'none'}
+        testID="cart-overlay"
+        style={[
+          overlayStyle,
+          {
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
             zIndex: 40,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={closeDrawer}
+          accessibilityLabel="Close cart"
+          style={{
+            flex: 1,
+            backgroundColor: colors.overlay,
           }}
-        >
-          <Animated.View
-            style={[
-              overlayStyle,
-              {
-                flex: 1,
-                backgroundColor: colors.overlay,
-              },
-            ]}
-          />
-        </Pressable>
-      ) : null}
+        />
+      </Animated.View>
 
       <Animated.View
         pointerEvents={open ? 'auto' : 'none'}
@@ -222,10 +241,35 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
             <Text style={[type.label, { color: colors.text.secondary }]}>Total</Text>
             <Text style={[type.price, { color: colors.text.primary }]}>{formatMoney(total)}</Text>
           </View>
+          {checkoutError ? (
+            <View
+              testID="cart-checkout-error"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: 10,
+                backgroundColor: colors.bg.secondary,
+              }}
+            >
+              <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+              <Text
+                style={[
+                  type.caption,
+                  { color: colors.error, flex: 1 },
+                ]}
+              >
+                {checkoutError}
+              </Text>
+            </View>
+          ) : null}
           <PrimaryButton
             label="Place order"
             onPress={handleCheckout}
-            disabled={items.length === 0}
+            loading={checkoutLoading}
+            disabled={items.length === 0 || checkoutLoading}
             fullWidth
             testID="cart-checkout"
           />
@@ -235,11 +279,4 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   );
 }
 
-// Used only by tests that want to assert the reanimated mock saw a
-// spring call. Exported so it isn't dead-code-eliminated.
-export { withSpring as _withSpringForTest };
-
-// Type re-export to silence unused ActivityIndicator when not loading.
 export type { CartDrawerProps };
-
-void ActivityIndicator;

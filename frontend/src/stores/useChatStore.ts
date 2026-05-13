@@ -12,6 +12,7 @@ import { create } from 'zustand';
 
 import { getApiClient } from '@/lib/api';
 import { getSessionId } from '@/lib/session';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { useCartStore } from '@/stores/useCartStore';
 import type { Cart, ChatResponse } from '@/types/api';
 
@@ -69,9 +70,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
+      // Attach the signed-in user's id when present so the backend can
+      // link this conversation to their account. Anonymous sessions
+      // omit the field rather than send null.
+      const userId = useAuthStore.getState().user?.id;
       const res = await getApiClient().post<ChatResponse>('/api/chat', {
         sessionId: get().sessionId,
         message: trimmed,
+        ...(userId ? { userId } : {}),
       });
 
       if (res.data.cartUpdate) {

@@ -67,10 +67,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   async logout() {
     try {
       await api().post('/auth/logout');
-    } catch {
-      // Even if the network call fails, clear local state — the user
-      // wants to sign out. The refresh cookie will eventually expire on
-      // the server side too.
+    } catch (err) {
+      // Clear local state regardless — the user wants to sign out and
+      // the refresh cookie will expire server-side. Log so failures are
+      // still observable in dev / monitoring.
+      console.warn('[auth] logout network call failed:', err);
     }
     set({ user: null, token: null, status: 'idle', error: null });
   },

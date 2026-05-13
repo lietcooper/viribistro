@@ -8,6 +8,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withTiming,
@@ -28,14 +29,16 @@ function Dot({ delay, reduced }: DotProps) {
       scale.value = 1;
       return;
     }
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(0.6, { duration: delay }),
-        withTiming(1.0, { duration: 280, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0.6, { duration: 280, easing: Easing.inOut(Easing.quad) }),
+    scale.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(1.0, { duration: 280, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0.6, { duration: 280, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        true,
       ),
-      -1,
-      false,
     );
     return () => cancelAnimation(scale);
   }, [delay, reduced, scale]);

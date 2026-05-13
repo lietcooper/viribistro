@@ -1,6 +1,7 @@
 // A single menu card in the grid. Tapping the body opens the detail
 // modal; tapping the round + button does an inline add (scale-pop
 // animation, then `useCartStore.addItem`).
+import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, Text, View } from 'react-native';
@@ -33,14 +34,19 @@ const BLUR_PLACEHOLDER =
 export function MenuItemCard({ item, index, onPress }: MenuItemCardProps) {
   const addItem = useCartStore((s) => s.addItem);
 
-  // Card entrance — staggered slide + fade.
+  // Card entrance — staggered slide + fade. Wrapped in useEffect so the
+  // animation only fires on mount (and when `index` changes), not on
+  // every parent re-render — otherwise the cards visibly snap back to
+  // their initial offset whenever something above re-renders.
   const enterY = useSharedValue(16);
   const enterOpacity = useSharedValue(0);
-  enterY.value = withDelay(index * 60, withSpring(0, springs.snappy));
-  enterOpacity.value = withDelay(
-    index * 60,
-    withSpring(1, { ...springs.snappy, damping: 25 }),
-  );
+  useEffect(() => {
+    enterY.value = withDelay(index * 60, withSpring(0, springs.snappy));
+    enterOpacity.value = withDelay(
+      index * 60,
+      withSpring(1, { ...springs.snappy, damping: 25 }),
+    );
+  }, [index, enterY, enterOpacity]);
   const enterStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: enterY.value }],
     opacity: enterOpacity.value,

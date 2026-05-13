@@ -4,9 +4,12 @@
 // behind a splash until the answer comes back.
 //
 // `useAuthStore.bootstrap()` already updates the store; this hook only
-// keeps a local "we've finished trying" flag.
+// keeps a local "we've finished trying" flag. It also drains any OAuth
+// redirect status that may be sitting in the URL (e.g. an error from
+// the Google callback) so the user gets feedback instead of silence.
 import { useEffect, useState } from 'react';
 
+import { consumeOAuthRedirectStatus } from '@/lib/oauth';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 export function useBootstrapAuth(): { ready: boolean } {
@@ -15,10 +18,12 @@ export function useBootstrapAuth(): { ready: boolean } {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      consumeOAuthRedirectStatus();
       try {
         await useAuthStore.getState().bootstrap();
-      } catch {
+      } catch (err) {
         // bootstrap swallows its own errors already — defensive only.
+        console.warn('[auth] bootstrap threw unexpectedly:', err);
       } finally {
         if (!cancelled) setReady(true);
       }

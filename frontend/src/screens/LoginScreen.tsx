@@ -30,8 +30,15 @@ export function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleRedirecting, setGoogleRedirecting] = useState(false);
 
   const login = useAuthStore((s) => s.login);
+
+  const handleGoogleSignIn = () => {
+    setGoogleRedirecting(true);
+    setError(null);
+    openGoogleOAuth();
+  };
 
   const submit = async () => {
     setError(null);
@@ -44,9 +51,10 @@ export function LoginScreen({ navigation }: Props) {
       await login(email.trim(), password);
       // RootNavigator swaps to MainTabs on token presence — no nav call
       // needed here.
-    } catch {
-      const stored = useAuthStore.getState().error;
-      setError(stored ?? 'Invalid email or password');
+    } catch (err) {
+      const apiMessage = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      setError(apiMessage ?? 'Invalid email or password');
     } finally {
       setSubmitting(false);
     }
@@ -109,7 +117,11 @@ export function LoginScreen({ navigation }: Props) {
               fullWidth
               testID="login-submit"
             />
-            <GoogleButton onPress={openGoogleOAuth} testID="login-google" />
+            <GoogleButton
+              onPress={handleGoogleSignIn}
+              loading={googleRedirecting}
+              testID="login-google"
+            />
           </View>
 
           <Pressable

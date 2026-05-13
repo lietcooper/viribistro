@@ -30,8 +30,15 @@ export function SignupScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleRedirecting, setGoogleRedirecting] = useState(false);
 
   const register = useAuthStore((s) => s.register);
+
+  const handleGoogleSignIn = () => {
+    setGoogleRedirecting(true);
+    setError(null);
+    openGoogleOAuth();
+  };
 
   const submit = async () => {
     setError(null);
@@ -46,9 +53,10 @@ export function SignupScreen({ navigation }: Props) {
     setSubmitting(true);
     try {
       await register(email.trim(), password, name.trim());
-    } catch {
-      const stored = useAuthStore.getState().error;
-      setError(stored ?? 'Could not create your account');
+    } catch (err) {
+      const apiMessage = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      setError(apiMessage ?? 'Could not create your account');
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +127,11 @@ export function SignupScreen({ navigation }: Props) {
               fullWidth
               testID="signup-submit"
             />
-            <GoogleButton onPress={openGoogleOAuth} testID="signup-google" />
+            <GoogleButton
+              onPress={handleGoogleSignIn}
+              loading={googleRedirecting}
+              testID="signup-google"
+            />
           </View>
 
           <Pressable

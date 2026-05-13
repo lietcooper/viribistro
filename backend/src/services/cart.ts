@@ -24,6 +24,21 @@ export interface Cart {
 // Sessions → carts. Reset between tests via clearCart(); never serialized.
 const carts: Map<string, CartItem[]> = new Map();
 
+/**
+ * Normalize a Prisma Decimal (or anything with toString()) to a canonical
+ * two-decimal price string. The schema is Decimal(10,2), so the column
+ * *should* always come back like "26.00" — but a future migration or an
+ * imported dataset could break that assumption. Without this, recomputeTotal
+ * would silently truncate (slice(0,2)) anything past two decimals.
+ *
+ * Use Number().toFixed(2) which round-half-to-even is fine for our domain
+ * (prices are user-visible and never long-tail). Numbers ≤ ~9 trillion stay
+ * exact at IEEE 754 precision, which is way above any plausible menu price.
+ */
+export function normalizePrice(price: { toString: () => string }): string {
+  return Number(price.toString()).toFixed(2);
+}
+
 function readableItems(sessionId: string): CartItem[] {
   return carts.get(sessionId) ?? [];
 }
@@ -94,7 +109,8 @@ export async function addItem(
       menuItemId: item.id,
       name: item.name,
       quantity,
-      unitPrice: item.price.toString(),
+      // Normalize at the boundary — see normalizePrice() rationale.
+      unitPrice: normalizePrice(item.price),
     });
   }
   carts.set(sessionId, next);

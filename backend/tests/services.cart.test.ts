@@ -3,6 +3,7 @@ import { prisma } from '../src/lib/prisma.js';
 import { resetDb } from './helpers/resetDb.js';
 import { seedMenu } from '../prisma/seed.js';
 import * as cartService from '../src/services/cart.js';
+import { normalizePrice } from '../src/services/cart.js';
 
 describe('cart service', () => {
   let burger: { id: string; price: string };
@@ -35,7 +36,8 @@ describe('cart service', () => {
     expect(cart.items).toHaveLength(1);
     expect(cart.items[0]!.menuItemId).toBe(burger.id);
     expect(cart.items[0]!.quantity).toBe(1);
-    expect(cart.items[0]!.unitPrice).toBe(burger.price);
+    // unitPrice is normalized at the cart boundary to two decimal places.
+    expect(cart.items[0]!.unitPrice).toBe(normalizePrice(burger.price));
     expect(cart.items[0]!.name).toBe('Wagyu Beef Burger');
     // total is always two decimal places, matching the DB Decimal(10,2) shape.
     expect(Number(cart.total)).toBeCloseTo(Number(burger.price), 2);
@@ -99,6 +101,18 @@ describe('cart service', () => {
     // A single $26 burger should serialize as "26.00", not "26".
     await cartService.addItem('session-a', burger.id, 1);
     expect(cartService.getCart('session-a').total).toMatch(/^\d+\.\d{2}$/);
+  });
+
+  describe('normalizePrice', () => {
+    it('always returns a two-decimal string', () => {
+      expect(normalizePrice('26')).toBe('26.00');
+      expect(normalizePrice('26.5')).toBe('26.50');
+      expect(normalizePrice('0')).toBe('0.00');
+      expect(normalizePrice({ toString: () => '12.345' })).toBe('12.35');
+      // Defends against a long-tail value sneaking past Decimal(10,2) —
+      // recomputeTotal's slice(0,2) would otherwise silently truncate.
+      expect(normalizePrice('99.999')).toBe('100.00');
+    });
   });
 
   it('partitions carts by sessionId', async () => {

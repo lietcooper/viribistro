@@ -1,0 +1,95 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/install-state.gz
+.yarn/build-state.yml
+.yarn/unplugged
+.pnpm-store/
+
+# ─── Build output ────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ─── Expo / React Native ─────────────────────────────────────────────────────
+.expo/
+.expo-shared/
+web-build/
+expo-env.d.ts
+
+# Native mobile artifacts (we're web-only, but ignore in case Expo emits them)
+ios/
+android/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# ─── Environment variables ───────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.test
+.env.development
+.env.production
+# Keep example files tracked
+!.env.example
+
+# ─── Prisma ──────────────────────────────────────────────────────────────────
+# NOTE: keep prisma/schema.prisma and prisma/migrations/ TRACKED.
+# The generated client (node_modules/.prisma) is covered by node_modules/.
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+
+# ─── Testing & coverage ──────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+junit.xml
+*.lcov
+
+# ─── Caches ──────────────────────────────────────────────────────────────────
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.vite/
+.eslintcache
+.stylelintcache
+
+# ─── Deployment platforms ────────────────────────────────────────────────────
+.vercel/
+.railway/
+
+# ─── Editors & IDEs ──────────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+.history/
+*.swp
+*.swo
+*~
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Claude Code local scaffolding ───────────────────────────────────────────
+.claude/settings.local.json
+.claude/*.local.*

@@ -120,6 +120,15 @@ export function MainTabs({ navRef }: MainTabsProps) {
     dismissSuccess();
     if (navRef.isReady()) {
       navRef.navigate('Orders');
+    } else {
+      // The success modal fires its own auto-dismiss timer; if the
+      // navigation container somehow isn't ready by then, we don't want
+      // to crash — but silently dropping the navigation would leave the
+      // user stranded on the previous tab with no indication why. Log
+      // so operators can spot a real race (CLAUDE.md: no silent failures).
+      console.warn(
+        '[MainTabs] navRef not ready when dismissing OrderSuccess — staying on current tab',
+      );
     }
   }, [dismissSuccess, navRef]);
 
@@ -144,10 +153,7 @@ export function MainTabs({ navRef }: MainTabsProps) {
                 paddingRight: 16,
               }}
             >
-              {/* Logout lives on the Orders tab — the natural "account"
-                  surface. Other tabs keep just the cart for a cleaner
-                  header. */}
-              {route.name === 'Orders' ? <LogoutHeaderButton /> : null}
+              <LogoutHeaderButton />
               <CartTabButton />
             </View>
           ),

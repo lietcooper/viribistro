@@ -28,10 +28,7 @@ function ensureViewportFitCover(): void {
   if (!meta) return;
   const content = meta.getAttribute('content') ?? '';
   if (content.includes('viewport-fit=cover')) return;
-  meta.setAttribute(
-    'content',
-    `${content}${content ? ', ' : ''}viewport-fit=cover`,
-  );
+  meta.setAttribute('content', `${content}${content ? ', ' : ''}viewport-fit=cover`);
 }
 
 export default function App() {

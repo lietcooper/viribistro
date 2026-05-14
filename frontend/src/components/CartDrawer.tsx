@@ -60,13 +60,23 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   const translateY = useSharedValue(sheetHeight);
   const overlayOpacity = useSharedValue(0);
 
-  // Track whether the `open` flag actually changed this render. The animation
-  // effect lists `sheetHeight` as a dep so we re-snap the closed position
-  // when mobile Safari resizes (URL bar collapses, keyboard pops, etc.) —
-  // but only the open/close transitions should run the spring; a viewport
-  // resize while we're already closed must snap silently or the drawer
-  // peeks up into the viewport.
   const prevOpen = useRef(open);
+
+  // Keep the drawer mounted only while it's open OR animating closed. When
+  // fully closed + idle, we render nothing — this is the only reliable way
+  // to keep mobile Safari from revealing the drawer on viewport reshuffles
+  // (URL-bar collapse, keyboard pop/dismiss). translateY-only hiding leaks
+  // pixels whenever the layout reflows between the effect's re-renders.
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    // Match the close animation budget so the slide-down still plays.
+    const t = setTimeout(() => setMounted(false), 400);
+    return () => clearTimeout(t);
+  }, [open]);
 
   useEffect(() => {
     // Clear stale checkout errors whenever the drawer opens — a fresh
@@ -86,19 +96,14 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
     }
 
     if (open) {
-      // Always animate on a new open. A pure-resize re-render while open
-      // doesn't need re-springing (translateY is already 0).
       if (transitioned) {
         translateY.value = withSpring(0, springs.drawer);
         overlayOpacity.value = withTiming(1, { duration: 220 });
       }
     } else if (transitioned) {
-      // Just closed: animate down.
       translateY.value = withSpring(h, springs.drawer);
       overlayOpacity.value = withTiming(0, { duration: 180 });
     } else {
-      // Closed and the viewport changed size — snap to the new off-screen
-      // position so the drawer doesn't peek up when sheetHeight grows.
       translateY.value = h;
     }
   }, [open, reducedMotion, sheetHeight, translateY, overlayOpacity]);
@@ -153,6 +158,12 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
       setCheckoutLoading(false);
     }
   };
+
+  // Skip rendering entirely once the close animation has finished. The
+  // overlay/sheet pair is fully off-screen at that point, and any later
+  // layout reflow (Safari URL bar, soft keyboard) can momentarily expose
+  // it; unmounting is the simplest way to guarantee it stays invisible.
+  if (!mounted) return null;
 
   return (
     <>

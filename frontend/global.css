@@ -2,14 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mobile Safari's bottom URL bar overlays the layout viewport, so 100vh
-   (the default `html { height: 100% }` resolves to) puts our tab bar
-   behind it. 100dvh is the "dynamic viewport height" — it shrinks and
-   grows as the URL bar collapses on scroll. Supported on iOS Safari 15.4+
-   and every other current browser; older browsers ignore the rule and
-   fall back to the 100% baseline above. */
+/* Mobile Safari's bottom URL bar overlays the layout viewport, so the
+   default `html { height: 100% }` baked into Expo's web template puts our
+   bottom tab bar behind it. Lock html / body / #root to the *visible*
+   viewport. Multiple declarations so older WebKits still get a sensible
+   fallback: the cascade picks the last one the engine understands.
+     - 100% / 100vh: baseline, may include URL bar area
+     - 100svh: small viewport height, assumes URL bar visible
+     - 100dvh: dynamic viewport, the modern "always visible" value
+   Combined with overflow:hidden the page never scrolls past the visible
+   area, which keeps absolutely-positioned children (like the cart
+   drawer) anchored to the bottom edge users actually see. */
 html,
 body,
 #root {
+  height: 100%;
+  height: 100svh;
   height: 100dvh;
+  overflow: hidden;
 }

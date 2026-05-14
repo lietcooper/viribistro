@@ -58,7 +58,7 @@ export function ChatInput({ disabled, onSend }: ChatInputProps) {
           multiline
           style={{
             fontFamily: 'DMSans-Regular',
-            fontSize: 15,
+            fontSize: 16,
             color: colors.text.primary,
             paddingVertical: 8,
             maxHeight: 96,

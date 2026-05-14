@@ -27,8 +27,14 @@ function ensureViewportFitCover(): void {
   const meta = document.querySelector('meta[name="viewport"]');
   if (!meta) return;
   const content = meta.getAttribute('content') ?? '';
-  if (content.includes('viewport-fit=cover')) return;
-  meta.setAttribute('content', `${content}${content ? ', ' : ''}viewport-fit=cover`);
+  const required = ['width=device-width', 'initial-scale=1', 'viewport-fit=cover'];
+  const next = [...content.split(',').map((part) => part.trim()).filter(Boolean)];
+
+  for (const part of required) {
+    if (!next.includes(part)) next.push(part);
+  }
+
+  meta.setAttribute('content', next.join(', '));
 }
 
 export default function App() {

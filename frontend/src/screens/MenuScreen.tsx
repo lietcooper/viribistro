@@ -87,7 +87,7 @@ export function MenuScreen() {
               flex: 1,
               marginLeft: 8,
               fontFamily: 'DMSans-Regular',
-              fontSize: 15,
+              fontSize: 16,
               color: colors.text.primary,
               paddingVertical: 8,
             }}

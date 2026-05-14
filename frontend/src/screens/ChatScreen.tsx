@@ -2,7 +2,7 @@
 // when the agent is mid-thought, and a docked input at the bottom. When
 // the conversation is empty we surface a small set of suggested prompts
 // so the user always has a clear way in.
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Alert,
@@ -47,11 +47,21 @@ export function ChatScreen() {
   };
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const previousMessageCount = useRef(messages.length);
+  const previousIsTyping = useRef(isTyping);
+  const shouldScrollToEnd = useRef(false);
 
-  // Note: we used to also scrollToEnd from a useEffect on messages.length /
-  // isTyping with a 60ms timeout. That raced with the FlatList's
-  // onContentSizeChange below and caused jank on slower devices. The
-  // onContentSizeChange path fires after layout, which is what we want.
+  useEffect(() => {
+    const messageAdded = messages.length > previousMessageCount.current;
+    const typingStarted = isTyping && !previousIsTyping.current;
+
+    if (messageAdded || typingStarted) {
+      shouldScrollToEnd.current = true;
+    }
+
+    previousMessageCount.current = messages.length;
+    previousIsTyping.current = isTyping;
+  }, [messages.length, isTyping]);
 
   const renderItem = ({ item }: { item: ChatMessage }) => <ChatBubble message={item} />;
 
@@ -155,7 +165,11 @@ export function ChatScreen() {
                   </View>
                 ) : null
               }
-              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+              onContentSizeChange={() => {
+                if (!shouldScrollToEnd.current) return;
+                shouldScrollToEnd.current = false;
+                listRef.current?.scrollToEnd({ animated: true });
+              }}
               testID="chat-list"
             />
           )}

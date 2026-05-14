@@ -1,8 +1,16 @@
-// Persistent cart store, keyed by sessionId. REST and chat tools share this
-// service so every cart path converges on the same Postgres-backed state.
+// Persistent cart store. Authenticated carts are keyed by userId; guest carts
+// fall back to sessionId. REST and chat tools share this service.
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/AppError.js';
+
+export interface CartOwner {
+  sessionId: string;
+  userId?: string | null;
+}
+
+type CartLookup = { userId: string } | { sessionId: string };
+type CartOwnerInput = string | CartOwner;
 
 export interface CartItem {
   menuItemId: string;
@@ -22,6 +30,20 @@ type DbCartItem = {
   unitPrice: { toString: () => string };
   menuItem: { name: string };
 };
+
+function owner(input: CartOwnerInput): CartOwner {
+  return typeof input === 'string' ? { sessionId: input, userId: null } : input;
+}
+
+function lookup(input: CartOwnerInput): CartLookup {
+  const o = owner(input);
+  return o.userId ? { userId: o.userId } : { sessionId: o.sessionId };
+}
+
+export function cartOwnerKey(input: CartOwnerInput): string {
+  const o = owner(input);
+  return o.userId ? `user:${o.userId}` : `session:${o.sessionId}`;
+}
 
 export function normalizePrice(price: { toString: () => string }): string {
   return Number(price.toString()).toFixed(2);
@@ -49,9 +71,9 @@ function serialize(items: DbCartItem[]): Cart {
   return { items: serialized, total: recomputeTotal(serialized) };
 }
 
-async function readItems(sessionId: string): Promise<DbCartItem[]> {
+async function readItems(ownerInput: CartOwnerInput): Promise<DbCartItem[]> {
   const row = await prisma.cart.findUnique({
-    where: { sessionId },
+    where: lookup(ownerInput),
     select: {
       items: {
         orderBy: { id: 'asc' },
@@ -67,11 +89,13 @@ async function readItems(sessionId: string): Promise<DbCartItem[]> {
   return row?.items ?? [];
 }
 
-async function ensureCart(sessionId: string): Promise<{ id: string }> {
+async function ensureCart(ownerInput: CartOwnerInput): Promise<{ id: string }> {
+  const o = owner(ownerInput);
+  const where = lookup(o);
   return prisma.cart.upsert({
-    where: { sessionId },
+    where,
     update: {},
-    create: { sessionId },
+    create: o.userId ? { userId: o.userId } : { sessionId: o.sessionId },
     select: { id: true },
   });
 }
@@ -96,17 +120,17 @@ async function lookupMenuItem(
   return item;
 }
 
-export async function getCart(sessionId: string): Promise<Cart> {
-  return serialize(await readItems(sessionId));
+export async function getCart(ownerInput: CartOwnerInput): Promise<Cart> {
+  return serialize(await readItems(ownerInput));
 }
 
-export async function clearCart(sessionId: string): Promise<Cart> {
-  await prisma.cart.deleteMany({ where: { sessionId } });
+export async function clearCart(ownerInput: CartOwnerInput): Promise<Cart> {
+  await prisma.cart.deleteMany({ where: lookup(ownerInput) });
   return { items: [], total: '0.00' };
 }
 
 export async function addItem(
-  sessionId: string,
+  ownerInput: CartOwnerInput,
   menuItemId: string,
   quantity: number,
 ): Promise<Cart> {
@@ -114,7 +138,7 @@ export async function addItem(
     throw new AppError(400, 'INVALID_QUANTITY', 'Quantity must be a positive integer');
   }
   const item = await lookupMenuItem(menuItemId);
-  const cart = await ensureCart(sessionId);
+  const cart = await ensureCart(ownerInput);
 
   await prisma.cartItem.upsert({
     where: { cartId_menuItemId: { cartId: cart.id, menuItemId } },
@@ -127,11 +151,11 @@ export async function addItem(
     },
   });
 
-  return getCart(sessionId);
+  return getCart(ownerInput);
 }
 
 export async function modifyItem(
-  sessionId: string,
+  ownerInput: CartOwnerInput,
   menuItemId: string,
   newQuantity: number,
 ): Promise<Cart> {
@@ -140,7 +164,7 @@ export async function modifyItem(
   }
 
   const existingCart = await prisma.cart.findUnique({
-    where: { sessionId },
+    where: lookup(ownerInput),
     select: { id: true },
   });
 
@@ -150,11 +174,11 @@ export async function modifyItem(
         where: { cartId: existingCart.id, menuItemId },
       });
     }
-    return getCart(sessionId);
+    return getCart(ownerInput);
   }
 
   const item = await lookupMenuItem(menuItemId);
-  const cart = existingCart ?? (await ensureCart(sessionId));
+  const cart = existingCart ?? (await ensureCart(ownerInput));
   await prisma.cartItem.upsert({
     where: { cartId_menuItemId: { cartId: cart.id, menuItemId } },
     update: { quantity: newQuantity, unitPrice: item.price },
@@ -166,12 +190,15 @@ export async function modifyItem(
     },
   });
 
-  return getCart(sessionId);
+  return getCart(ownerInput);
 }
 
-export async function removeItem(sessionId: string, menuItemId: string): Promise<Cart> {
+export async function removeItem(
+  ownerInput: CartOwnerInput,
+  menuItemId: string,
+): Promise<Cart> {
   const existingCart = await prisma.cart.findUnique({
-    where: { sessionId },
+    where: lookup(ownerInput),
     select: { id: true },
   });
   if (!existingCart) return { items: [], total: '0.00' };
@@ -179,5 +206,5 @@ export async function removeItem(sessionId: string, menuItemId: string): Promise
   await prisma.cartItem.deleteMany({
     where: { cartId: existingCart.id, menuItemId },
   });
-  return getCart(sessionId);
+  return getCart(ownerInput);
 }

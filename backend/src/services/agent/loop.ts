@@ -25,7 +25,7 @@ import {
   renderCartBlock,
   type MenuSnapshotItem,
 } from './systemPrompt.js';
-import { getCart, type Cart } from '../cart.js';
+import { getCart, type Cart, type CartOwner } from '../cart.js';
 
 export const MAX_LOOP_ITERATIONS = 6;
 
@@ -40,6 +40,7 @@ export interface AnthropicLike {
 export interface RunAgentLoopArgs {
   anthropic: AnthropicLike;
   sessionId: string;
+  userId?: string | null;
   menu: MenuSnapshotItem[];
   // History from earlier turns of the same conversation, as already-shaped
   // Anthropic message params (we persist Message.content as JSON, so this
@@ -141,6 +142,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
   const {
     anthropic,
     sessionId,
+    userId = null,
     menu,
     priorMessages,
     userMessage,
@@ -148,7 +150,8 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
     maxTokens = 1024,
   } = args;
 
-  const cart = await getCart(sessionId);
+  const cartOwner: CartOwner = { sessionId, userId };
+  const cart = await getCart(cartOwner);
 
   // The system array is split in two so the static half (persona + menu)
   // stays byte-stable across requests in the same chat — Anthropic returns
@@ -222,7 +225,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
     for (const tu of toolUseBlocks) {
       const dispatched: DispatchResult = await dispatchTool(
         { id: tu.id, name: tu.name, input: tu.input },
-        { sessionId },
+        cartOwner,
       );
 
       toolsUsed.push({ name: dispatched.toolName, input: tu.input });
@@ -265,7 +268,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
       return {
         reply: clarifyQuestion,
         toolsUsed,
-        cartUpdate: mutated ? await getCart(sessionId) : null,
+        cartUpdate: mutated ? await getCart(cartOwner) : null,
         suggestedReplies: [],
         newTurnMessages: messages.slice(priorCount),
       };
@@ -305,7 +308,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<RunAgentLoop
   return {
     reply: cleanReply,
     toolsUsed,
-    cartUpdate: mutated ? await getCart(sessionId) : null,
+    cartUpdate: mutated ? await getCart(cartOwner) : null,
     suggestedReplies: suggestions,
     newTurnMessages: messages.slice(priorCount),
   };

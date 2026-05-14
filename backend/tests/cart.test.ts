@@ -5,6 +5,7 @@ import { resetDb } from './helpers/resetDb.js';
 import { prisma } from '../src/lib/prisma.js';
 import { seedMenu } from '../prisma/seed.js';
 import * as cartService from '../src/services/cart.js';
+import { signAccessToken } from '../src/services/auth.js';
 
 describe('Cart HTTP routes', () => {
   let burgerId: string;
@@ -50,6 +51,32 @@ describe('Cart HTTP routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toHaveLength(1);
     expect(res.body.cart.items[0].quantity).toBe(2);
+  });
+
+  it('uses authenticated user cart instead of shared browser session cart', async () => {
+    const app = await buildTestApp();
+    const userA = await prisma.user.create({
+      data: { email: 'route-cart-a@example.com', name: 'Route Cart A', provider: 'google' },
+    });
+    const userB = await prisma.user.create({
+      data: { email: 'route-cart-b@example.com', name: 'Route Cart B', provider: 'google' },
+    });
+    const tokenA = signAccessToken({ sub: userA.id, email: userA.email });
+    const tokenB = signAccessToken({ sub: userB.id, email: userB.email });
+
+    await request(app)
+      .post('/api/cart')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ sessionId: 'same-browser-session', menuItemId: burgerId, quantity: 1 })
+      .expect(200);
+
+    const resB = await request(app)
+      .get('/api/cart')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .query({ sessionId: 'same-browser-session' });
+
+    expect(resB.status).toBe(200);
+    expect(resB.body.cart.items).toEqual([]);
   });
 
   it('POST /api/cart with unknown menuItemId returns 400', async () => {

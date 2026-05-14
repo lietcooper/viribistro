@@ -122,6 +122,27 @@ describe('cart service', () => {
     expect((await cartService.getCart('session-b')).items[0]!.menuItemId).toBe(salmon.id);
   });
 
+  it('partitions authenticated carts by userId even with the same sessionId', async () => {
+    const userA = await prisma.user.create({
+      data: { email: 'cart-user-a@example.com', name: 'Cart User A', provider: 'google' },
+    });
+    const userB = await prisma.user.create({
+      data: { email: 'cart-user-b@example.com', name: 'Cart User B', provider: 'google' },
+    });
+
+    await cartService.addItem({ sessionId: 'shared-browser', userId: userA.id }, burger.id, 1);
+    await cartService.addItem({ sessionId: 'shared-browser', userId: userB.id }, salmon.id, 1);
+
+    expect(
+      (await cartService.getCart({ sessionId: 'shared-browser', userId: userA.id })).items[0]!
+        .menuItemId,
+    ).toBe(burger.id);
+    expect(
+      (await cartService.getCart({ sessionId: 'shared-browser', userId: userB.id })).items[0]!
+        .menuItemId,
+    ).toBe(salmon.id);
+  });
+
   it('total is the sum of unitPrice * quantity', async () => {
     await cartService.addItem('session-a', burger.id, 2);
     await cartService.addItem('session-a', salmon.id, 1);

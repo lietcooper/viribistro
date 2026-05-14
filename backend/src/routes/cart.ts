@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import { validate } from '../middleware/validate.js';
 import * as cart from '../services/cart.js';
+import { optionalUserId } from '../lib/optionalUserId.js';
 import {
   GetCartQuerySchema,
   AddCartBodySchema,
@@ -14,9 +15,13 @@ import {
 
 export const cartRouter: Router = Router();
 
+function owner(req: { headers: { authorization?: string } }, sessionId: string) {
+  return { sessionId, userId: optionalUserId(req, 'Cart') };
+}
+
 cartRouter.get('/', validate({ query: GetCartQuerySchema }), async (req, res) => {
   const { sessionId } = req.query as { sessionId: string };
-  res.json({ cart: await cart.getCart(sessionId) });
+  res.json({ cart: await cart.getCart(owner(req, sessionId)) });
 });
 
 cartRouter.post('/', validate({ body: AddCartBodySchema }), async (req, res) => {
@@ -25,7 +30,7 @@ cartRouter.post('/', validate({ body: AddCartBodySchema }), async (req, res) => 
     menuItemId: string;
     quantity: number;
   };
-  const next = await cart.addItem(sessionId, menuItemId, quantity);
+  const next = await cart.addItem(owner(req, sessionId), menuItemId, quantity);
   res.json({ cart: next });
 });
 
@@ -35,7 +40,7 @@ cartRouter.patch('/', validate({ body: ModifyCartBodySchema }), async (req, res)
     menuItemId: string;
     quantity: number;
   };
-  const next = await cart.modifyItem(sessionId, menuItemId, quantity);
+  const next = await cart.modifyItem(owner(req, sessionId), menuItemId, quantity);
   res.json({ cart: next });
 });
 
@@ -45,7 +50,7 @@ cartRouter.delete(
   async (req, res) => {
     const { menuItemId } = req.params as { menuItemId: string };
     const { sessionId } = req.query as { sessionId: string };
-    const next = await cart.removeItem(sessionId, menuItemId);
+    const next = await cart.removeItem(owner(req, sessionId), menuItemId);
     res.json({ cart: next });
   },
 );
@@ -58,6 +63,6 @@ cartRouter.delete(
 // shadow a literal segment.
 cartRouter.post('/reset', validate({ body: ResetCartBodySchema }), async (req, res) => {
   const { sessionId } = req.body as { sessionId: string };
-  const next = await cart.clearCart(sessionId);
+  const next = await cart.clearCart(owner(req, sessionId));
   res.json({ cart: next });
 });

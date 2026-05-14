@@ -79,8 +79,9 @@ describe('Orders routes', () => {
 
     it('creates an Order + OrderItems in a transaction, clears the cart', async () => {
       const { accessToken, userId } = await registerAndLogin();
-      await cartService.addItem('order-sess', burgerId, 2);
-      await cartService.addItem('order-sess', salmonId, 1);
+      const owner = { sessionId: 'order-sess', userId };
+      await cartService.addItem(owner, burgerId, 2);
+      await cartService.addItem(owner, salmonId, 1);
 
       const app = await buildTestApp();
       const res = await request(app)
@@ -97,7 +98,7 @@ describe('Orders routes', () => {
       expect(totals).toContain(1);
 
       // Cart cleared.
-      expect((await cartService.getCart('order-sess')).items).toEqual([]);
+      expect((await cartService.getCart(owner)).items).toEqual([]);
 
       // DB row exists.
       const dbOrder = await prisma.order.findUnique({
@@ -109,8 +110,8 @@ describe('Orders routes', () => {
     });
 
     it('rejects concurrent confirmations of the same sessionId with 409 ORDER_IN_PROGRESS', async () => {
-      const { accessToken } = await registerAndLogin();
-      await cartService.addItem('order-sess', burgerId, 1);
+      const { accessToken, userId } = await registerAndLogin();
+      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
 
       const app = await buildTestApp();
       // Fire two simultaneous requests. The in-memory mutex keyed by
@@ -137,7 +138,7 @@ describe('Orders routes', () => {
     });
 
     it('releases the per-session lock after a failed confirmation', async () => {
-      const { accessToken } = await registerAndLogin();
+      const { accessToken, userId } = await registerAndLogin();
       const app = await buildTestApp();
 
       // First call fails (empty cart).
@@ -149,7 +150,7 @@ describe('Orders routes', () => {
       expect(fail.body.error.code).toBe('CART_EMPTY');
 
       // Then a real order with the same sessionId should still succeed.
-      await cartService.addItem('order-sess', burgerId, 1);
+      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
       const ok = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -158,8 +159,8 @@ describe('Orders routes', () => {
     });
 
     it('snapshots unitPrice from the menu item at confirmation time', async () => {
-      const { accessToken } = await registerAndLogin();
-      await cartService.addItem('order-sess', burgerId, 1);
+      const { accessToken, userId } = await registerAndLogin();
+      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
       const item = await prisma.menuItem.findUnique({ where: { id: burgerId } });
 
       const app = await buildTestApp();
@@ -182,17 +183,17 @@ describe('Orders routes', () => {
     });
 
     it("returns only the authenticated user's orders, newest first", async () => {
-      const { accessToken } = await registerAndLogin();
+      const { accessToken, userId } = await registerAndLogin();
       // place two orders sequentially
       const app = await buildTestApp();
-      await cartService.addItem('order-sess', burgerId, 1);
+      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
       await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ sessionId: 'order-sess' })
         .expect(201);
 
-      await cartService.addItem('order-sess', salmonId, 1);
+      await cartService.addItem({ sessionId: 'order-sess', userId }, salmonId, 1);
       await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${accessToken}`)

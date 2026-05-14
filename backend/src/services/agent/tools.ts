@@ -170,6 +170,7 @@ export type DispatchResult =
 
 export interface DispatchContext {
   sessionId: string;
+  userId?: string | null;
 }
 
 interface ToolUseLike {
@@ -223,21 +224,21 @@ export async function dispatchTool(
         const { itemId, quantity = 1 } = input as z.infer<
           (typeof toolInputZod)['add_to_cart']
         >;
-        const next = await cart.addItem(ctx.sessionId, itemId, quantity);
+        const next = await cart.addItem(ctx, itemId, quantity);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'remove_from_cart': {
         const { itemId } = input as z.infer<(typeof toolInputZod)['remove_from_cart']>;
-        const next = await cart.removeItem(ctx.sessionId, itemId);
+        const next = await cart.removeItem(ctx, itemId);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'modify_item': {
         const { itemId, newQuantity } = input as z.infer<(typeof toolInputZod)['modify_item']>;
-        const next = await cart.modifyItem(ctx.sessionId, itemId, newQuantity);
+        const next = await cart.modifyItem(ctx, itemId, newQuantity);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'get_cart': {
-        const snap = await cart.getCart(ctx.sessionId);
+        const snap = await cart.getCart(ctx);
         return resultOk(block.id, name, false, { cart: snap });
       }
       case 'get_menu': {

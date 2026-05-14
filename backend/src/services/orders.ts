@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/AppError.js';
 import * as cart from './cart.js';
+import type { CartOwner } from './cart.js';
 
 export interface SerializedOrderItem {
   id: string;
@@ -61,32 +62,27 @@ const inFlightConfirmations: Set<string> = new Set();
  * price from the DB inside the transaction so a stale in-memory snapshot
  * can't drift past a menu price update.
  */
-export async function confirmCart(
-  userId: string | null,
-  sessionId: string,
-): Promise<SerializedOrder> {
-  if (inFlightConfirmations.has(sessionId)) {
+export async function confirmCart(owner: CartOwner): Promise<SerializedOrder> {
+  const key = cart.cartOwnerKey(owner);
+  if (inFlightConfirmations.has(key)) {
     throw new AppError(
       409,
       'ORDER_IN_PROGRESS',
       'An order for this session is already being confirmed',
     );
   }
-  inFlightConfirmations.add(sessionId);
+  inFlightConfirmations.add(key);
   try {
-    return await confirmCartInner(userId, sessionId);
+    return await confirmCartInner(owner);
   } finally {
     // ALWAYS release: even on success, even on failure, even on AppError.
     // Otherwise the session would be permanently locked out of ordering.
-    inFlightConfirmations.delete(sessionId);
+    inFlightConfirmations.delete(key);
   }
 }
 
-async function confirmCartInner(
-  userId: string | null,
-  sessionId: string,
-): Promise<SerializedOrder> {
-  const current = await cart.getCart(sessionId);
+async function confirmCartInner(owner: CartOwner): Promise<SerializedOrder> {
+  const current = await cart.getCart(owner);
   if (current.items.length === 0) {
     throw new AppError(400, 'CART_EMPTY', 'Cart is empty');
   }
@@ -125,7 +121,7 @@ async function confirmCartInner(
 
     const order = await tx.order.create({
       data: {
-        userId,
+        userId: owner.userId ?? null,
         status: 'confirmed',
         totalPrice: total,
         items: { create: itemRows },
@@ -136,7 +132,7 @@ async function confirmCartInner(
   });
 
   // Clear cart only after the transaction succeeds.
-  await cart.clearCart(sessionId);
+  await cart.clearCart(owner);
 
   return serializeOrder(persisted);
 }

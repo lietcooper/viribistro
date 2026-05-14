@@ -60,13 +60,13 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   const translateY = useSharedValue(sheetHeight);
   const overlayOpacity = useSharedValue(0);
 
-  // Capture the latest sheetHeight in a ref so the animation effect can
-  // read it without listing `sheetHeight` as a dependency. On the web,
-  // useWindowDimensions emits a new height on every browser resize,
-  // which would otherwise re-run the spring animation even when the
-  // drawer is closed (visible flicker / re-trigger).
-  const sheetHeightRef = useRef(sheetHeight);
-  sheetHeightRef.current = sheetHeight;
+  // Track whether the `open` flag actually changed this render. The animation
+  // effect lists `sheetHeight` as a dep so we re-snap the closed position
+  // when mobile Safari resizes (URL bar collapses, keyboard pops, etc.) —
+  // but only the open/close transitions should run the spring; a viewport
+  // resize while we're already closed must snap silently or the drawer
+  // peeks up into the viewport.
+  const prevOpen = useRef(open);
 
   useEffect(() => {
     // Clear stale checkout errors whenever the drawer opens — a fresh
@@ -75,18 +75,33 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
   }, [open]);
 
   useEffect(() => {
-    const h = sheetHeightRef.current;
+    const h = sheetHeight;
+    const transitioned = prevOpen.current !== open;
+    prevOpen.current = open;
+
     if (reducedMotion) {
       translateY.value = open ? 0 : h;
       overlayOpacity.value = open ? 1 : 0;
-    } else if (open) {
-      translateY.value = withSpring(0, springs.drawer);
-      overlayOpacity.value = withTiming(1, { duration: 220 });
-    } else {
+      return;
+    }
+
+    if (open) {
+      // Always animate on a new open. A pure-resize re-render while open
+      // doesn't need re-springing (translateY is already 0).
+      if (transitioned) {
+        translateY.value = withSpring(0, springs.drawer);
+        overlayOpacity.value = withTiming(1, { duration: 220 });
+      }
+    } else if (transitioned) {
+      // Just closed: animate down.
       translateY.value = withSpring(h, springs.drawer);
       overlayOpacity.value = withTiming(0, { duration: 180 });
+    } else {
+      // Closed and the viewport changed size — snap to the new off-screen
+      // position so the drawer doesn't peek up when sheetHeight grows.
+      translateY.value = h;
     }
-  }, [open, reducedMotion, translateY, overlayOpacity]);
+  }, [open, reducedMotion, sheetHeight, translateY, overlayOpacity]);
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],

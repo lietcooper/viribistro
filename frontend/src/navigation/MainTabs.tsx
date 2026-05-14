@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { Alert, Modal, Platform, Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CartBadge } from '@/components/CartBadge';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -121,6 +122,11 @@ export function MainTabs({ navRef }: MainTabsProps) {
   const dismissSuccess = useCartUiStore((s) => s.dismissSuccess);
   const showSuccess = useCartUiStore((s) => s.showSuccess);
   const hydrateCart = useCartStore((s) => s.hydrateCart);
+  // Mobile Safari's URL bar overlays the bottom of the viewport; without
+  // adding the safe-area inset the tab icons + labels sit behind it.
+  // On platforms / browsers that don't expose insets this comes back as 0,
+  // which is fine — the layout already has 8px of intentional padding.
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     void hydrateCart();
@@ -175,8 +181,8 @@ export function MainTabs({ navRef }: MainTabsProps) {
           tabBarStyle: {
             backgroundColor: colors.bg.elevated,
             borderTopColor: colors.border,
-            height: 64,
-            paddingBottom: 8,
+            height: 64 + insets.bottom,
+            paddingBottom: 8 + insets.bottom,
             paddingTop: 8,
           },
           tabBarLabelStyle: { fontFamily: 'DMSans-Medium', fontSize: 12 },

@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Mobile Safari's bottom URL bar overlays the layout viewport, so 100vh
+   (the default `html { height: 100% }` resolves to) puts our tab bar
+   behind it. 100dvh is the "dynamic viewport height" — it shrinks and
+   grows as the URL bar collapses on scroll. Supported on iOS Safari 15.4+
+   and every other current browser; older browsers ignore the rule and
+   fall back to the 100% baseline above. */
+html,
+body,
+#root {
+  height: 100dvh;
+}

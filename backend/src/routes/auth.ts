@@ -304,6 +304,10 @@ authRouter.get('/google', (req, res, next) => {
       ),
     );
   }
+  // Each OAuth init carries a fresh CSRF `state` and (post-rotation) a fresh
+  // redirect_uri. Caching the 302 makes Safari serve a stale Google URL on
+  // the next click, which Google rejects as redirect_uri_mismatch.
+  res.setHeader('Cache-Control', 'no-store');
   return passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,

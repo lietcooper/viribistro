@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 /* Mobile Safari's bottom URL bar overlays the layout viewport, so the
-   default `html { height: 100% }` baked into Expo's web template puts our
-   bottom tab bar behind it. Lock html / body / #root to the *visible*
-   viewport. Multiple declarations so older WebKits still get a sensible
-   fallback: the cascade picks the last one the engine understands.
+   default `html { height: 100% }` baked into Expo's web template can put
+   our bottom tab bar behind it. Lock html / body / #root to the small
+   viewport so mobile browser chrome stays outside the app. Multiple
+   declarations keep older WebKits on a sensible fallback.
      - 100% / 100vh: baseline, may include URL bar area
-     - 100svh: small viewport height, assumes URL bar visible
      - 100dvh: dynamic viewport, the modern "always visible" value
+     - 100svh: safest for browser bars that still overlay dynamic units
    Combined with overflow:hidden the page never scrolls past the visible
    area, which keeps absolutely-positioned children (like the cart
    drawer) anchored to the bottom edge users actually see. */
@@ -18,8 +18,8 @@ body,
 #root {
   width: 100%;
   height: 100%;
-  height: 100svh;
   height: 100dvh;
+  height: 100svh;
   margin: 0;
   overflow: hidden;
 }

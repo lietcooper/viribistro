@@ -4,7 +4,7 @@ A full-stack, AI-first restaurant ordering app. Instead of clicking through menu
 
 > Live demo: **<https://viribistro.vercel.app>**
 >
-> Open the URL on phone or desktop — no install, no signup required. The chat tab is the default landing.
+> Open the URL on phone or desktop — no install required. The chat tab is the default landing.
 
 ---
 

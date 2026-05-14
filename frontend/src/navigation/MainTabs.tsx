@@ -30,7 +30,8 @@ export type MainTabsParamList = {
 };
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
-const MAX_BROWSER_BOTTOM_INSET = 96;
+const MOBILE_BROWSER_BOTTOM_INSET = 112;
+const MAX_BROWSER_BOTTOM_INSET = 132;
 
 interface MainTabsProps {
   // Provided by RootNavigator so the post-checkout success modal can
@@ -122,10 +123,18 @@ function getBrowserBottomInset(): number {
   if (Platform.OS !== 'web') return 0;
   if (typeof window === 'undefined') return 0;
   const viewport = window.visualViewport;
-  if (!viewport) return 0;
+  const isNarrowTouchDevice =
+    window.innerWidth <= 768 &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+
+  if (!viewport) return isNarrowTouchDevice ? MOBILE_BROWSER_BOTTOM_INSET : 0;
 
   const covered = window.innerHeight - viewport.height - viewport.offsetTop;
-  return Math.max(0, Math.min(MAX_BROWSER_BOTTOM_INSET, Math.round(covered)));
+  const detectedInset = Math.max(0, Math.min(MAX_BROWSER_BOTTOM_INSET, Math.round(covered)));
+
+  if (detectedInset > 0) return detectedInset;
+  return isNarrowTouchDevice ? MOBILE_BROWSER_BOTTOM_INSET : 0;
 }
 
 function useBrowserBottomInset(): number {

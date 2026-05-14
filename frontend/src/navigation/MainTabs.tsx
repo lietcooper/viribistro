@@ -5,7 +5,7 @@
 // the actual cart UI is a global bottom sheet mounted alongside the
 // navigator so it can open over any screen. Same for the post-checkout
 // success overlay — mounted once at the navigator level.
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
@@ -30,6 +30,7 @@ export type MainTabsParamList = {
 };
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
+const MAX_BROWSER_BOTTOM_INSET = 96;
 
 interface MainTabsProps {
   // Provided by RootNavigator so the post-checkout success modal can
@@ -117,6 +118,43 @@ function LogoutHeaderButton() {
   );
 }
 
+function getBrowserBottomInset(): number {
+  if (Platform.OS !== 'web') return 0;
+  if (typeof window === 'undefined') return 0;
+  const viewport = window.visualViewport;
+  if (!viewport) return 0;
+
+  const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+  return Math.max(0, Math.min(MAX_BROWSER_BOTTOM_INSET, Math.round(covered)));
+}
+
+function useBrowserBottomInset(): number {
+  const [bottomInset, setBottomInset] = useState(getBrowserBottomInset);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return undefined;
+    if (typeof window === 'undefined') return undefined;
+    const viewport = window.visualViewport;
+
+    const update = () => {
+      setBottomInset(getBrowserBottomInset());
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    viewport?.addEventListener('resize', update);
+    viewport?.addEventListener('scroll', update);
+
+    return () => {
+      window.removeEventListener('resize', update);
+      viewport?.removeEventListener('resize', update);
+      viewport?.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  return bottomInset;
+}
+
 export function MainTabs({ navRef }: MainTabsProps) {
   const successOpen = useCartUiStore((s) => s.successOpen);
   const dismissSuccess = useCartUiStore((s) => s.dismissSuccess);
@@ -127,6 +165,8 @@ export function MainTabs({ navRef }: MainTabsProps) {
   // On platforms / browsers that don't expose insets this comes back as 0,
   // which is fine — the layout already has 8px of intentional padding.
   const insets = useSafeAreaInsets();
+  const browserBottomInset = useBrowserBottomInset();
+  const tabBarBottomInset = insets.bottom + browserBottomInset;
 
   useEffect(() => {
     void hydrateCart();
@@ -181,8 +221,8 @@ export function MainTabs({ navRef }: MainTabsProps) {
           tabBarStyle: {
             backgroundColor: colors.bg.elevated,
             borderTopColor: colors.border,
-            height: 64 + insets.bottom,
-            paddingBottom: 8 + insets.bottom,
+            height: 64 + tabBarBottomInset,
+            paddingBottom: 8 + tabBarBottomInset,
             paddingTop: 8,
           },
           tabBarLabelStyle: { fontFamily: 'DMSans-Medium', fontSize: 12 },

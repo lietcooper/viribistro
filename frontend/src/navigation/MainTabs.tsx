@@ -231,7 +231,7 @@ export function MainTabs({ navRef }: MainTabsProps) {
             backgroundColor: colors.bg.elevated,
             borderTopColor: colors.border,
             height: 64 + tabBarBottomInset,
-            paddingBottom: 8 + tabBarBottomInset,
+            paddingBottom: 8,
             paddingTop: 8,
           },
           tabBarLabelStyle: { fontFamily: 'DMSans-Medium', fontSize: 12 },

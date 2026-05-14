@@ -30,6 +30,7 @@ export type MainTabsParamList = {
 };
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
+const TAB_CONTENT_HEIGHT = 64;
 const MOBILE_BROWSER_BOTTOM_INSET = 112;
 const MAX_BROWSER_BOTTOM_INSET = 132;
 
@@ -230,10 +231,11 @@ export function MainTabs({ navRef }: MainTabsProps) {
           tabBarStyle: {
             backgroundColor: colors.bg.elevated,
             borderTopColor: colors.border,
-            height: 64 + tabBarBottomInset,
-            paddingBottom: 8,
+            height: TAB_CONTENT_HEIGHT + tabBarBottomInset,
+            paddingBottom: tabBarBottomInset,
             paddingTop: 8,
           },
+          tabBarItemStyle: { height: TAB_CONTENT_HEIGHT - 8 },
           tabBarLabelStyle: { fontFamily: 'DMSans-Medium', fontSize: 12 },
           tabBarIcon: ({ color, size }) => {
             const name =

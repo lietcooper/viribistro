@@ -160,4 +160,68 @@ describe('MenuItemModal', () => {
     render(<MenuItemModal item={null} onClose={jest.fn()} />);
     expect(screen.queryByTestId('menu-item-modal')).toBeNull();
   });
+
+  it('forwards a trimmed kitchen note into the cart store', () => {
+    render(<MenuItemModal item={burger} onClose={jest.fn()} />);
+    fireEvent.press(screen.getByTestId('customization-option-temp-medium'));
+    fireEvent.changeText(screen.getByTestId('menu-item-modal-note'), '  extra crispy  ');
+    fireEvent.press(screen.getByTestId('menu-item-modal-add'));
+
+    const items = useCartStore.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.note).toBe('extra crispy');
+  });
+
+  it('omits the note when the user leaves the field empty', () => {
+    render(<MenuItemModal item={burger} onClose={jest.fn()} />);
+    fireEvent.press(screen.getByTestId('customization-option-temp-medium'));
+    fireEvent.changeText(screen.getByTestId('menu-item-modal-note'), '   ');
+    fireEvent.press(screen.getByTestId('menu-item-modal-add'));
+
+    const items = useCartStore.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.note).toBeNull();
+  });
+
+  // Regression: `toggleOption` used to read `group.maxSelections` only,
+  // which is undefined for groups coming from the API (Prisma serializes
+  // the field as `maxSelect`). Result: every multi-select group silently
+  // collapsed to radio mode and the second selection wiped the first.
+  it('allows selecting up to maxSelect options for API-shaped groups', () => {
+    const itemFromApi: MenuItem = {
+      id: 'mi_lemonade',
+      name: 'Lemonade',
+      description: 'House-made.',
+      price: '7.00',
+      category: 'drinks',
+      tags: [],
+      imageUrl: 'https://example.com/lemonade.jpg',
+      available: true,
+      customizationGroups: [
+        {
+          id: 'addons',
+          name: 'Add-ons',
+          required: false,
+          minSelect: 0,
+          maxSelect: 2,
+          options: [
+            { id: 'mint', name: 'Extra mint', priceDelta: '0.00', available: true },
+            { id: 'strawberry', name: 'Strawberry purée', priceDelta: '2.00', available: true },
+            { id: 'lavender', name: 'Lavender syrup', priceDelta: '1.00', available: true },
+          ],
+        },
+      ],
+    };
+
+    const onClose = jest.fn();
+    render(<MenuItemModal item={itemFromApi} onClose={onClose} />);
+    fireEvent.press(screen.getByTestId('customization-option-addons-mint'));
+    fireEvent.press(screen.getByTestId('customization-option-addons-strawberry'));
+    fireEvent.press(screen.getByTestId('menu-item-modal-add'));
+
+    const items = useCartStore.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.customizations?.[0]?.optionIds).toEqual(['mint', 'strawberry']);
+    expect(items[0]?.unitPrice).toBe('9.00');
+  });
 });

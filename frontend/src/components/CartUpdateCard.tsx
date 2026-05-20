@@ -40,8 +40,8 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
           Cart updated · {itemCount === 1 ? '1 item' : `${itemCount} items`}
         </Text>
       </View>
-      {cart.items.slice(0, 3).map((it, index) => (
-        <View key={`${cartLineId(it)}-${index}`} style={{ gap: 2 }}>
+      {cart.items.slice(0, 3).map((it) => (
+        <View key={cartLineId(it)} style={{ gap: 2 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
             <Text
               numberOfLines={1}
@@ -60,6 +60,17 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
                   selectedCustomizationOptionNames(customization).join(', '),
                 )
                 .join(' · ')}
+            </Text>
+          ) : null}
+          {it.note ? (
+            <Text
+              numberOfLines={2}
+              style={[
+                type.caption,
+                { color: colors.text.tertiary, fontStyle: 'italic' },
+              ]}
+            >
+              “{it.note}”
             </Text>
           ) : null}
         </View>

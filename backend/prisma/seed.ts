@@ -253,7 +253,94 @@ const MENU: MenuItemSeed[] = [
   },
 ];
 
+// Groups added to existing customizable items keep new groups OPTIONAL —
+// cart/chatRoute tests fill only the pre-existing required groups (e.g. the
+// Wagyu burger's `Temperature`), so making new ones required would break
+// MISSING_REQUIRED_CUSTOMIZATION assertions. Items getting their FIRST
+// customization here may have one required group (no test references them).
 const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
+  // ─── Starters ──────────────────────────────────────────────────────────────
+  Burrata: [
+    {
+      name: 'Bread',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Toasted baguette', sortOrder: 1 },
+        { name: 'Gluten-free crackers', sortOrder: 2 },
+        { name: 'No bread', sortOrder: 3 },
+      ],
+    },
+  ],
+  'French Onion Soup': [
+    {
+      name: 'Cheese',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Standard Gruyère crust', sortOrder: 1 },
+        { name: 'Extra Gruyère', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'No cheese', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Bread',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Toasted baguette', sortOrder: 1 },
+        { name: 'Gluten-free toast', sortOrder: 2 },
+        { name: 'No bread', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Tuna Tartare': [
+    {
+      name: 'Spice level',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Mild', sortOrder: 1 },
+        { name: 'Standard', sortOrder: 2 },
+        { name: 'Extra chili oil', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Chips',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Wonton chips', sortOrder: 1 },
+        { name: 'Gluten-free rice crackers', sortOrder: 2 },
+      ],
+    },
+  ],
+  'Shrimp Cocktail': [
+    {
+      name: 'Sauce',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Standard horseradish-cocktail', sortOrder: 1 },
+        { name: 'Extra horseradish kick', sortOrder: 2 },
+        { name: 'Mild cocktail', sortOrder: 3 },
+      ],
+    },
+  ],
+
+  // ─── Mains ─────────────────────────────────────────────────────────────────
   'Spicy Chicken Sandwich': [
     {
       name: 'Heat level',
@@ -276,6 +363,42 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
       options: [
         { name: 'Avocado', priceDelta: '3.00', sortOrder: 1 },
         { name: 'Aged cheddar', priceDelta: '2.00', sortOrder: 2 },
+      ],
+    },
+    {
+      name: 'Bun',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 3,
+      options: [
+        { name: 'Brioche', sortOrder: 1 },
+        { name: 'Whole wheat brioche', sortOrder: 2 },
+        { name: 'Lettuce wrap (gluten-free)', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Ingredients to skip',
+      required: false,
+      minSelect: 0,
+      maxSelect: 3,
+      sortOrder: 4,
+      options: [
+        { name: 'No slaw', sortOrder: 1 },
+        { name: 'No pickles', sortOrder: 2 },
+        { name: 'No butter on bun', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Side',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 5,
+      options: [
+        { name: 'Hand-cut fries', sortOrder: 1 },
+        { name: 'Sweet potato fries', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Side salad', sortOrder: 3 },
       ],
     },
   ],
@@ -304,6 +427,55 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
         { name: 'No cheese', sortOrder: 3 },
       ],
     },
+    {
+      name: 'Bun',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 3,
+      options: [
+        { name: 'Toasted potato bun', sortOrder: 1 },
+        { name: 'Brioche', sortOrder: 2 },
+        { name: 'Lettuce wrap (gluten-free)', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Add-ons',
+      required: false,
+      minSelect: 0,
+      maxSelect: 3,
+      sortOrder: 4,
+      options: [
+        { name: 'Bacon', priceDelta: '3.00', sortOrder: 1 },
+        { name: 'Fried egg', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Avocado', priceDelta: '3.00', sortOrder: 3 },
+        { name: 'Sautéed mushrooms', priceDelta: '2.00', sortOrder: 4 },
+      ],
+    },
+    {
+      name: 'Ingredients to skip',
+      required: false,
+      minSelect: 0,
+      maxSelect: 3,
+      sortOrder: 5,
+      options: [
+        { name: 'No caramelized onions', sortOrder: 1 },
+        { name: 'No garlic aioli', sortOrder: 2 },
+        { name: 'No tomato', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Side',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 6,
+      options: [
+        { name: 'Hand-cut fries', sortOrder: 1 },
+        { name: 'Sweet potato fries', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Side salad', sortOrder: 3 },
+      ],
+    },
   ],
   'Pan-Seared Salmon': [
     {
@@ -318,7 +490,233 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
         { name: 'Extra beurre blanc', priceDelta: '2.00', sortOrder: 3 },
       ],
     },
+    {
+      name: 'Doneness',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Medium', sortOrder: 1 },
+        { name: 'Medium well', sortOrder: 2 },
+        { name: 'Well done', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Side substitution',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 3,
+      options: [
+        { name: 'Lemon-dill quinoa', sortOrder: 1 },
+        { name: 'Roasted potatoes', sortOrder: 2 },
+        { name: 'Sautéed spinach', sortOrder: 3 },
+      ],
+    },
   ],
+  'Wild Mushroom Risotto': [
+    {
+      name: 'Cheese',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Standard parmesan', sortOrder: 1 },
+        { name: 'Extra parmesan', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'No cheese (vegan)', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Add-ons',
+      required: false,
+      minSelect: 0,
+      maxSelect: 2,
+      sortOrder: 2,
+      options: [
+        { name: 'Truffle oil drizzle', priceDelta: '4.00', sortOrder: 1 },
+        { name: 'Grilled chicken', priceDelta: '8.00', sortOrder: 2 },
+        { name: 'Sautéed shrimp', priceDelta: '9.00', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Ribeye Steak (12oz)': [
+    {
+      name: 'Temperature',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Rare', sortOrder: 1 },
+        { name: 'Medium rare', sortOrder: 2 },
+        { name: 'Medium', sortOrder: 3 },
+        { name: 'Medium well', sortOrder: 4 },
+        { name: 'Well done', sortOrder: 5 },
+      ],
+    },
+    {
+      name: 'Sauce',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Herb butter', sortOrder: 1 },
+        { name: 'Bordelaise', priceDelta: '3.00', sortOrder: 2 },
+        { name: 'Green peppercorn', priceDelta: '3.00', sortOrder: 3 },
+        { name: 'No sauce', sortOrder: 4 },
+      ],
+    },
+    {
+      name: 'Side substitution',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 3,
+      options: [
+        { name: 'Truffle pommes purée', sortOrder: 1 },
+        { name: 'Roasted potatoes', sortOrder: 2 },
+        { name: 'Mashed potatoes', sortOrder: 3 },
+        { name: 'Sautéed spinach', sortOrder: 4 },
+      ],
+    },
+  ],
+  'Lobster Linguine': [
+    {
+      name: 'Spice level',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Mild', sortOrder: 1 },
+        { name: 'Standard Calabrian', sortOrder: 2 },
+        { name: 'Extra spicy', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Pasta',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Linguine', sortOrder: 1 },
+        { name: 'Gluten-free penne', priceDelta: '3.00', sortOrder: 2 },
+      ],
+    },
+    {
+      name: 'Add-ons',
+      required: false,
+      minSelect: 0,
+      maxSelect: 2,
+      sortOrder: 3,
+      options: [
+        { name: 'Extra lobster tail', priceDelta: '14.00', sortOrder: 1 },
+        { name: 'Garlic bread', priceDelta: '4.00', sortOrder: 2 },
+        { name: 'Shaved parmesan', priceDelta: '1.00', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Duck Confit': [
+    {
+      name: 'Sauce',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'House jus', sortOrder: 1 },
+        { name: 'Orange gastrique', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Cherry reduction', priceDelta: '2.00', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Side substitution',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Lentils du Puy', sortOrder: 1 },
+        { name: 'Roasted potatoes', sortOrder: 2 },
+        { name: 'Wilted greens', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Charred Vegetable Mille-Feuille': [
+    {
+      name: 'Add-ons',
+      required: false,
+      minSelect: 0,
+      maxSelect: 2,
+      sortOrder: 1,
+      options: [
+        { name: 'Vegan ricotta', priceDelta: '3.00', sortOrder: 1 },
+        { name: 'Toasted pine nuts', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Extra balsamic glaze', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Ingredients to skip',
+      required: false,
+      minSelect: 0,
+      maxSelect: 2,
+      sortOrder: 2,
+      options: [
+        { name: 'No sun-dried tomato pesto', sortOrder: 1 },
+        { name: 'No balsamic glaze', sortOrder: 2 },
+      ],
+    },
+  ],
+
+  // ─── Desserts ──────────────────────────────────────────────────────────────
+  'Crème Brûlée': [
+    {
+      name: 'Berries',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Mixed berries', sortOrder: 1 },
+        { name: 'Strawberries only', sortOrder: 2 },
+        { name: 'No berries', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Chocolate Lava Cake': [
+    {
+      name: 'Ice cream',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Vanilla bean', sortOrder: 1 },
+        { name: 'Salted caramel', sortOrder: 2 },
+        { name: 'No ice cream', sortOrder: 3 },
+      ],
+    },
+  ],
+  Tiramisu: [
+    {
+      name: 'Espresso strength',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Standard', sortOrder: 1 },
+        { name: 'Extra strong', sortOrder: 2 },
+        { name: 'Decaf', sortOrder: 3 },
+      ],
+    },
+  ],
+
+  // ─── Drinks ────────────────────────────────────────────────────────────────
   'Sparkling Mineral Water': [
     {
       name: 'Style',
@@ -329,6 +727,17 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
       options: [
         { name: 'Sparkling', sortOrder: 1 },
         { name: 'Still', sortOrder: 2 },
+      ],
+    },
+    {
+      name: 'Size',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Glass', sortOrder: 1 },
+        { name: 'Bottle (750ml)', priceDelta: '3.00', sortOrder: 2 },
       ],
     },
   ],
@@ -345,6 +754,31 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
         { name: 'Extra ginger', priceDelta: '1.00', sortOrder: 3 },
       ],
     },
+    {
+      name: 'Ice',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Standard ice', sortOrder: 1 },
+        { name: 'Light ice', sortOrder: 2 },
+        { name: 'No ice', sortOrder: 3 },
+        { name: 'Extra ice', sortOrder: 4 },
+      ],
+    },
+    {
+      name: 'Add-ons',
+      required: false,
+      minSelect: 0,
+      maxSelect: 2,
+      sortOrder: 3,
+      options: [
+        { name: 'Extra mint', sortOrder: 1 },
+        { name: 'Strawberry purée', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Lavender syrup', priceDelta: '1.00', sortOrder: 3 },
+      ],
+    },
   ],
   'House Red Wine': [
     {
@@ -358,6 +792,18 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
         { name: 'Carafe', priceDelta: '18.00', sortOrder: 2 },
       ],
     },
+    {
+      name: 'Varietal',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: "Today's pick", sortOrder: 1 },
+        { name: 'Spanish Garnacha', sortOrder: 2 },
+        { name: 'Italian Sangiovese', sortOrder: 3 },
+      ],
+    },
   ],
   'House White Wine': [
     {
@@ -369,6 +815,18 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
       options: [
         { name: 'Glass', sortOrder: 1 },
         { name: 'Carafe', priceDelta: '18.00', sortOrder: 2 },
+      ],
+    },
+    {
+      name: 'Varietal',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: "Today's pick", sortOrder: 1 },
+        { name: 'Sauvignon Blanc', sortOrder: 2 },
+        { name: 'Unoaked Chardonnay', sortOrder: 3 },
       ],
     },
   ],
@@ -385,6 +843,17 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
         { name: 'Seasonal ale', sortOrder: 3 },
       ],
     },
+    {
+      name: 'Size',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: '12oz pint', sortOrder: 1 },
+        { name: '16oz pour', priceDelta: '3.00', sortOrder: 2 },
+      ],
+    },
   ],
   'Espresso Martini': [
     {
@@ -397,6 +866,30 @@ const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
         { name: 'Classic', sortOrder: 1 },
         { name: 'Extra espresso', priceDelta: '2.00', sortOrder: 2 },
         { name: 'Decaf espresso', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Sweetness',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Standard', sortOrder: 1 },
+        { name: 'Less sweet', sortOrder: 2 },
+        { name: 'Extra sweet', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Garnish',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 3,
+      options: [
+        { name: 'Three coffee beans', sortOrder: 1 },
+        { name: 'Cocoa dust', sortOrder: 2 },
+        { name: 'No garnish', sortOrder: 3 },
       ],
     },
   ],

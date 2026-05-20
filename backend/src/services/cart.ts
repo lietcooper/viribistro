@@ -21,6 +21,9 @@ export interface CartItem {
   unitPrice: string;
   customizationHash: string;
   customizations: NormalizedCustomization[];
+  // Free-text kitchen note. null when the user didn't add one. Empty/
+  // whitespace-only input is normalized to null at the cart boundary.
+  note: string | null;
 }
 
 export interface Cart {
@@ -35,6 +38,7 @@ type DbCartItem = {
   unitPrice: { toString: () => string };
   customizationHash: string;
   customizations: Prisma.JsonValue;
+  note: string | null;
   menuItem: { name: string };
 };
 
@@ -99,6 +103,7 @@ function serialize(items: DbCartItem[]): Cart {
     unitPrice: normalizePrice(item.unitPrice),
     customizationHash: item.customizationHash,
     customizations: deserializeCustomizations(item.customizations),
+    note: item.note,
   }));
   return { items: serialized, total: recomputeTotal(serialized) };
 }
@@ -116,6 +121,7 @@ async function readItems(ownerInput: CartOwnerInput): Promise<DbCartItem[]> {
           unitPrice: true,
           customizationHash: true,
           customizations: true,
+          note: true,
           menuItem: { select: { name: true } },
         },
       },
@@ -207,18 +213,34 @@ function customizationsJson(customizations: NormalizedCustomization[]): Prisma.I
   return customizations as unknown as Prisma.InputJsonValue;
 }
 
-function customizationHash(customizations: NormalizedCustomization[]): string {
-  if (customizations.length === 0) return 'base';
-  const stable = customizations.map((group) => ({
+export function normalizeNote(input: string | null | undefined): string | null {
+  if (input == null) return null;
+  const trimmed = input.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+function customizationHash(
+  customizations: NormalizedCustomization[],
+  note: string | null,
+): string {
+  if (customizations.length === 0 && note == null) return 'base';
+  const groupShape = customizations.map((group) => ({
     groupId: group.groupId,
     optionIds: group.options.map((option) => option.optionId),
   }));
+  // Backward-compat: when no note, hash the bare groups array so that
+  // pre-note-feature lines still stack with newly-added identical
+  // no-note lines. With a note, switch to a wrapper object so two
+  // notes don't collide with the no-note hash. The kitchen needs each
+  // distinct note as its own line.
+  const stable = note == null ? groupShape : { g: groupShape, n: note };
   return createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 
 function normalizeCustomizations(
   item: Awaited<ReturnType<typeof lookupMenuItem>>,
   selected: SelectedCustomizations = {},
+  note: string | null = null,
 ): {
   customizations: NormalizedCustomization[];
   customizationHash: string;
@@ -289,7 +311,7 @@ function normalizeCustomizations(
 
   return {
     customizations: normalized,
-    customizationHash: customizationHash(normalized),
+    customizationHash: customizationHash(normalized, note),
     unitPrice,
   };
 }
@@ -308,14 +330,17 @@ export async function addItem(
   menuItemId: string,
   quantity: number,
   selectedCustomizations?: SelectedCustomizations,
+  noteInput?: string | null,
 ): Promise<Cart> {
   if (!Number.isInteger(quantity) || quantity < 1) {
     throw new AppError(400, 'INVALID_QUANTITY', 'Quantity must be a positive integer');
   }
   const item = await lookupMenuItem(menuItemId);
+  const note = normalizeNote(noteInput);
   const { customizations, customizationHash, unitPrice } = normalizeCustomizations(
     item,
     selectedCustomizations,
+    note,
   );
   const cart = await ensureCart(ownerInput);
 
@@ -327,6 +352,7 @@ export async function addItem(
       quantity: { increment: quantity },
       unitPrice,
       customizations: customizationsJson(customizations),
+      note,
     },
     create: {
       cartId: cart.id,
@@ -335,6 +361,7 @@ export async function addItem(
       unitPrice,
       customizationHash,
       customizations: customizationsJson(customizations),
+      note,
     },
   });
 
@@ -374,28 +401,17 @@ export async function modifyItem(
     return getCart(ownerInput);
   }
 
-  const item = await lookupMenuItem(itemIdOrCartItemId);
-  const { customizations, customizationHash, unitPrice } = normalizeCustomizations(item);
-  await prisma.cartItem.upsert({
-    where: {
-      cartId_menuItemId_customizationHash: {
-        cartId: cart.id,
-        menuItemId: item.id,
-        customizationHash,
-      },
-    },
-    update: { quantity: newQuantity, unitPrice },
-    create: {
-      cartId: cart.id,
-      menuItemId: item.id,
-      quantity: newQuantity,
-      unitPrice,
-      customizationHash,
-      customizations: customizationsJson(customizations),
-    },
-  });
-
-  return getCart(ownerInput);
+  // No existing line and newQuantity > 0: refuse to silently spawn a new
+  // bare line. For items with REQUIRED groups this would fail downstream
+  // anyway, but for items with only OPTIONAL groups it would have created
+  // an uncustomized line bypassing the agent's clarify flow. Force the
+  // caller to use add_to_cart, which goes through the full customization
+  // path (and lets the agent surface optional groups per persona rule 4).
+  throw new AppError(
+    400,
+    'MODIFY_REQUIRES_EXISTING_LINE',
+    'modify_item can only change an existing cart line; call add_to_cart to add a new one',
+  );
 }
 
 export async function removeItem(

@@ -25,6 +25,7 @@ export interface AddCartItemInput {
   name: string;
   unitPrice: string;
   customizations?: SelectedCustomization[];
+  note?: string;
 }
 
 export interface CartState {
@@ -134,65 +135,132 @@ function logSyncFailure(err: unknown): void {
   console.warn('[cart] server sync failed:', err);
 }
 
+// Tracks in-flight `addItem` POSTs keyed by the local line ID. When the
+// user removes/modifies a freshly-added line before the server has
+// replied (and reconcile hasn't yet swapped the local ID for the real
+// server ID), removeItem/modifyItem await the pending POST so the
+// follow-up DELETE/PATCH targets the real cart-item ID. The entry is
+// always cleared once the POST settles — see addItem below.
+const pendingAdds = new Map<string, Promise<void>>();
+
+function isLocalLineId(lineId: string): boolean {
+  return lineId.startsWith('local-');
+}
+
+async function awaitPendingAdd(lineId: string): Promise<void> {
+  const pending = pendingAdds.get(lineId);
+  if (!pending) return;
+  try {
+    await pending;
+  } catch (err) {
+    // The originating addItem already logged and refreshed; swallow here
+    // so the caller (remove/modify) can still decide what to do next.
+    console.warn('[cart] pending add settled with error before mutation:', err);
+  }
+}
+
+function resolveCurrentLineId(originalLineId: string): string | null {
+  // After reconcile, the local-prefixed ID is gone — we have to look up
+  // the (now server-issued) line by menuItemId. Cart lines are unique by
+  // (menuItemId, customizationHash), but for the rapid add-then-remove
+  // case there's only one line per menuItemId in flight, so matching on
+  // menuItemId is correct. If the line was removed (addItem failed and
+  // error handling stripped it), we return null and the caller bails.
+  if (!isLocalLineId(originalLineId)) return originalLineId;
+  const menuItemId = originalLineId.replace(/^local-/, '').replace(/-\d+$/, '');
+  const match = useCartStore.getState().items.find((i) => i.menuItemId === menuItemId);
+  return match?.id ?? null;
+}
+
 export const useCartStore = create<CartState>((set) => ({
   items: [],
   total: '0.00',
 
-  addItem({ menuItemId, name, unitPrice, customizations = [] }, quantity = 1) {
+  addItem({ menuItemId, name, unitPrice, customizations = [], note }, quantity = 1) {
     if (quantity <= 0) return;
+    const localLineId = nextLocalLineId(menuItemId);
     set((state) => {
       return withTotal([
         ...state.items,
         {
-          id: nextLocalLineId(menuItemId),
+          id: localLineId,
           menuItemId,
           name,
           unitPrice,
           quantity,
           customizations,
+          note: note ?? null,
         },
       ]);
     });
-    void getApiClient()
+    const request = getApiClient()
       .post<{ cart: Cart }>('/api/cart', {
         sessionId: getSessionId(),
-        itemId: menuItemId,
         menuItemId,
         quantity,
         customizations: toCartCustomizationInput(customizations),
+        ...(note ? { note } : {}),
       })
-      .then((res) => useCartStore.getState().reconcile(res.data.cart))
+      .then((res) => {
+        useCartStore.getState().reconcile(res.data.cart);
+      })
       .catch(async (err) => {
         logSyncFailure(err);
         await refreshServerCart().catch(logSyncFailure);
+      })
+      .finally(() => {
+        pendingAdds.delete(localLineId);
       });
+    pendingAdds.set(localLineId, request);
+    void request;
   },
 
   removeItem(lineId) {
     const line = useCartStore.getState().items.find((i) => findLine(i, lineId));
+    const menuItemId = line?.menuItemId;
     set((state) => withTotal(state.items.filter((i) => !findLine(i, lineId))));
-    void getApiClient()
-      .delete<{ cart: Cart }>(`/api/cart/${lineId}`, {
-        params: {
-          sessionId: getSessionId(),
-          cartItemId: line?.id,
-          menuItemId: line?.menuItemId,
-        },
-        data: {
-          sessionId: getSessionId(),
-          cartItemId: line?.id,
-          menuItemId: line?.menuItemId,
-        },
-      })
-      .then((res) => useCartStore.getState().reconcile(res.data.cart))
-      .catch(async (err) => {
+    const wasLocal = isLocalLineId(lineId);
+    void (async () => {
+      if (wasLocal) {
+        // Wait for the originating POST /api/cart so reconcile has swapped
+        // the local ID for the server-issued cart-item ID before we issue
+        // DELETE — otherwise the server gets `local-mi_burger-1` and
+        // silently no-ops.
+        await awaitPendingAdd(lineId);
+      }
+      const resolvedLineId = wasLocal ? resolveCurrentLineId(lineId) : lineId;
+      if (!resolvedLineId) {
+        // The addItem failed and reconcile already healed the cart; our
+        // optimistic remove has nothing to do on the server.
+        return;
+      }
+      try {
+        const res = await getApiClient().delete<{ cart: Cart }>(
+          `/api/cart/${resolvedLineId}`,
+          {
+            params: {
+              sessionId: getSessionId(),
+              cartItemId: resolvedLineId,
+              menuItemId,
+            },
+            data: {
+              sessionId: getSessionId(),
+              cartItemId: resolvedLineId,
+              menuItemId,
+            },
+          },
+        );
+        useCartStore.getState().reconcile(res.data.cart);
+      } catch (err) {
         logSyncFailure(err);
         await refreshServerCart().catch(logSyncFailure);
-      });
+      }
+    })();
   },
 
   modifyItem(lineId, newQuantity) {
     const line = useCartStore.getState().items.find((i) => findLine(i, lineId));
+    const menuItemId = line?.menuItemId;
     set((state) => {
       if (newQuantity <= 0) {
         return withTotal(state.items.filter((i) => !findLine(i, lineId)));
@@ -201,19 +269,30 @@ export const useCartStore = create<CartState>((set) => ({
         state.items.map((i) => (findLine(i, lineId) ? { ...i, quantity: newQuantity } : i)),
       );
     });
-    void getApiClient()
-      .patch<{ cart: Cart }>('/api/cart', {
-        sessionId: getSessionId(),
-        cartItemId: line?.id,
-        id: line?.id,
-        menuItemId: line?.menuItemId ?? lineId,
-        quantity: Math.max(0, newQuantity),
-      })
-      .then((res) => useCartStore.getState().reconcile(res.data.cart))
-      .catch(async (err) => {
+    const wasLocal = isLocalLineId(lineId);
+    void (async () => {
+      if (wasLocal) {
+        await awaitPendingAdd(lineId);
+      }
+      const resolvedLineId = wasLocal ? resolveCurrentLineId(lineId) : lineId;
+      if (wasLocal && !resolvedLineId) {
+        // The addItem failed; the line is already gone from local state.
+        return;
+      }
+      try {
+        const res = await getApiClient().patch<{ cart: Cart }>('/api/cart', {
+          sessionId: getSessionId(),
+          cartItemId: resolvedLineId ?? undefined,
+          id: resolvedLineId ?? undefined,
+          menuItemId: menuItemId ?? lineId,
+          quantity: Math.max(0, newQuantity),
+        });
+        useCartStore.getState().reconcile(res.data.cart);
+      } catch (err) {
         logSyncFailure(err);
         await refreshServerCart().catch(logSyncFailure);
-      });
+      }
+    })();
   },
 
   clearCart() {

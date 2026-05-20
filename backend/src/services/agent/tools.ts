@@ -21,7 +21,10 @@ export const toolSchemas: Anthropic.Tool[] = [
     description:
       'Add a menu item to the cart by its exact menuItemId. Quantity defaults to 1. ' +
       'Include customizations as { groupId: [optionId] } when the item has required choices. ' +
-      'Stacks with any existing quantity for the same item and same customizations.',
+      'Pass `note` for a freeform kitchen instruction the user mentioned (e.g. "extra crispy", ' +
+      '"allergy: peanuts"); omit when the user did not ask for anything special. ' +
+      'Stacks with existing lines that have the same item, customizations, AND note; ' +
+      'different notes create separate cart lines.',
     input_schema: {
       type: 'object',
       properties: {
@@ -41,6 +44,13 @@ export const toolSchemas: Anthropic.Tool[] = [
             items: { type: 'string' },
           },
           description: 'Selected customization option IDs keyed by customization group ID.',
+        },
+        note: {
+          type: 'string',
+          maxLength: 200,
+          description:
+            'Optional freeform kitchen note (≤200 chars). Use ONLY when the user asked for ' +
+            'something not covered by a customization group. Do NOT invent.',
         },
       },
       required: ['itemId'],
@@ -74,8 +84,8 @@ export const toolSchemas: Anthropic.Tool[] = [
     description:
       'Set one cart line quantity to an exact new value. Prefer cartItemId from CURRENT CART. ' +
       'Use this for quantity reductions like "remove one" by sending the decremented quantity. ' +
-      "A newQuantity of 0 removes the cart line. If itemId is used and the item isn't in the cart yet, " +
-      'a positive newQuantity adds the uncustomized item.',
+      'A newQuantity of 0 removes the cart line. modify_item only updates an existing line — ' +
+      "to add a new item to the cart, call add_to_cart with the user's customization choices.",
     input_schema: {
       type: 'object',
       properties: {
@@ -105,6 +115,17 @@ export const toolSchemas: Anthropic.Tool[] = [
       // Anthropic's JSON-schema validator expects `required` to be present
       // even on zero-arg tools — omitting it can produce a stricter
       // "schema invalid" error on some model versions.
+      required: [],
+    },
+  },
+  {
+    name: 'clear_cart',
+    description:
+      'Empty the entire cart in one call. Use when the user clearly asks to clear, ' +
+      'empty, reset, or start over — not for removing a single item.',
+    input_schema: {
+      type: 'object',
+      properties: {},
       required: [],
     },
   },
@@ -172,6 +193,7 @@ export const toolInputZod = {
     itemId: z.string().min(1),
     quantity: z.number().int().positive().optional(),
     customizations: SelectedCustomizations.optional(),
+    note: z.string().max(200).optional(),
   }),
   remove_from_cart: z
     .object({
@@ -193,6 +215,7 @@ export const toolInputZod = {
       path: ['cartItemId'],
     }),
   get_cart: z.object({}).passthrough(),
+  clear_cart: z.object({}).passthrough(),
   get_menu: z.object({
     category: Category.optional(),
   }),
@@ -282,11 +305,10 @@ export async function dispatchTool(
   try {
     switch (name) {
       case 'add_to_cart': {
-        const { itemId, quantity = 1 } = input as z.infer<
+        const { itemId, quantity = 1, customizations, note } = input as z.infer<
           (typeof toolInputZod)['add_to_cart']
         >;
-        const { customizations } = input as z.infer<(typeof toolInputZod)['add_to_cart']>;
-        const next = await cart.addItem(ctx, itemId, quantity, customizations);
+        const next = await cart.addItem(ctx, itemId, quantity, customizations, note);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'remove_from_cart': {
@@ -306,6 +328,10 @@ export async function dispatchTool(
       case 'get_cart': {
         const snap = await cart.getCart(ctx);
         return resultOk(block.id, name, false, { cart: snap });
+      }
+      case 'clear_cart': {
+        const next = await cart.clearCart(ctx);
+        return resultOk(block.id, name, true, { cart: next });
       }
       case 'get_menu': {
         const { category } = input as z.infer<(typeof toolInputZod)['get_menu']>;

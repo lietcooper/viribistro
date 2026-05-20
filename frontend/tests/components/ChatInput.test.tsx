@@ -66,13 +66,26 @@ describe('ChatInput', () => {
     expect(screen.getByLabelText('Stop voice input')).toBeTruthy();
   });
 
-  it('fills the input with the final transcript', () => {
+  it('fills the input with the final transcript when nothing is typed', () => {
     const { rerender } = render(<ChatInput onSend={jest.fn()} />);
 
     mockSpeechState.transcript = 'Add a burger';
     rerender(<ChatInput onSend={jest.fn()} />);
 
     expect(screen.getByTestId('chat-input').props.value).toBe('Add a burger');
+  });
+
+  it('appends the transcript to existing typed text rather than overwriting it', () => {
+    const { rerender } = render(<ChatInput onSend={jest.fn()} />);
+
+    // User types first.
+    fireEvent.changeText(screen.getByTestId('chat-input'), 'Make sure');
+
+    // Then dictates.
+    mockSpeechState.transcript = 'no onions';
+    rerender(<ChatInput onSend={jest.fn()} />);
+
+    expect(screen.getByTestId('chat-input').props.value).toBe('Make sure no onions');
   });
 
   it('shows interim transcript while listening', () => {

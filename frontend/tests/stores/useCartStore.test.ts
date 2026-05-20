@@ -64,7 +64,6 @@ describe('useCartStore mutations', () => {
     );
     expect(mockClient.post).toHaveBeenCalledWith('/api/cart', {
       sessionId: 'test-session',
-      itemId: 'm-burger',
       menuItemId: 'm-burger',
       quantity: 1,
       customizations: { temp: ['medium'] },
@@ -112,6 +111,80 @@ describe('useCartStore mutations', () => {
     });
     expect(useCartStore.getState().items).toEqual([{ ...fries, quantity: 3 }]);
     expect(useCartStore.getState().total).toBe('27');
+  });
+});
+
+describe('useCartStore — in-flight add/remove sequencing', () => {
+  it('awaits the pending addItem POST before issuing DELETE so the server gets the real cart-item id, not the local one', async () => {
+    // The user adds an item and immediately removes it. The DELETE must
+    // not fire with the `local-…` ID — it must wait for reconcile to
+    // swap in the real server-issued ID first.
+    let resolveAdd: (value: { data: { cart: { items: unknown[]; total: string } } }) => void;
+    const addPromise = new Promise<{ data: { cart: { items: unknown[]; total: string } } }>(
+      (resolve) => {
+        resolveAdd = resolve;
+      },
+    );
+    mockClient.post.mockReturnValueOnce(addPromise);
+    mockClient.delete.mockResolvedValueOnce({ data: { cart: { items: [], total: '0.00' } } });
+
+    useCartStore.getState().addItem(burger, 1);
+
+    const localId = useCartStore.getState().items[0]?.id;
+    expect(localId).toMatch(/^local-/);
+
+    // Optimistically remove the line while the POST is still pending.
+    useCartStore.getState().removeItem(localId!);
+
+    // Nothing should have been deleted yet — we're still waiting on the
+    // POST to settle so we know the real ID.
+    expect(mockClient.delete).not.toHaveBeenCalled();
+
+    // Server replies to the POST with the real cart-item ID.
+    resolveAdd!({
+      data: {
+        cart: {
+          items: [{ id: 'real-cart-line-1', menuItemId: 'm-burger', name: 'Wagyu burger', quantity: 1, unitPrice: '24.50' }],
+          total: '24.50',
+        },
+      },
+    });
+
+    // Let the awaits in removeItem resolve.
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(mockClient.delete).toHaveBeenCalledTimes(1);
+    expect(mockClient.delete).toHaveBeenCalledWith(
+      '/api/cart/real-cart-line-1',
+      expect.objectContaining({
+        params: expect.objectContaining({ cartItemId: 'real-cart-line-1' }),
+        data: expect.objectContaining({ cartItemId: 'real-cart-line-1' }),
+      }),
+    );
+  });
+
+  it('skips the DELETE call when the originating addItem fails (line already gone)', async () => {
+    let rejectAdd: (err: unknown) => void;
+    const addPromise = new Promise((_resolve, reject) => {
+      rejectAdd = reject;
+    });
+    mockClient.post.mockReturnValueOnce(addPromise);
+    // After the POST rejects, the store calls GET to refresh. Make it
+    // return an empty cart so the line is gone.
+    mockClient.get.mockResolvedValueOnce({ data: { cart: { items: [], total: '0.00' } } });
+
+    useCartStore.getState().addItem(burger, 1);
+    const localId = useCartStore.getState().items[0]?.id!;
+    expect(localId).toMatch(/^local-/);
+
+    useCartStore.getState().removeItem(localId);
+
+    rejectAdd!(new Error('network down'));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(mockClient.delete).not.toHaveBeenCalled();
   });
 });
 

@@ -4,7 +4,14 @@
 import { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Tag } from '@/components/Tag';
@@ -19,9 +26,12 @@ interface MenuItemModalProps {
   onClose: () => void;
 }
 
+const NOTE_MAX_LENGTH = 200;
+
 export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string[]>>({});
+  const [note, setNote] = useState('');
   const addItem = useCartStore((s) => s.addItem);
   const { height } = useWindowDimensions();
 
@@ -33,6 +43,7 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
     if (item) {
       setQuantity(1);
       setSelectedByGroup({});
+      setNote('');
     }
   }, [item?.id]);
 
@@ -64,7 +75,7 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
     setSelectedByGroup((current) => {
       const prev = current[group.id] ?? [];
       const exists = prev.includes(option.id);
-      const maxSelections = Math.max(1, group.maxSelections || 1);
+      const maxSelections = maxSelectionsFor(group);
       const next =
         maxSelections === 1
           ? exists
@@ -97,12 +108,20 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
       })
       .filter((customization) => customization.optionIds.length > 0);
 
+    const trimmedNote = note.trim();
     addItem(
-      { menuItemId: item.id, name: item.name, unitPrice: adjustedUnitPrice, customizations },
+      {
+        menuItemId: item.id,
+        name: item.name,
+        unitPrice: adjustedUnitPrice,
+        customizations,
+        note: trimmedNote.length > 0 ? trimmedNote : undefined,
+      },
       quantity,
     );
     setQuantity(1);
     setSelectedByGroup({});
+    setNote('');
     onClose();
   };
 
@@ -275,6 +294,52 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
                 </View>
               );
             })}
+
+            <View style={{ marginTop: 6, gap: 8 }}>
+              <View>
+                <Text style={[type.label, { color: colors.text.primary }]}>
+                  Special instructions
+                </Text>
+                <Text style={[type.caption, { color: colors.text.secondary }]}>
+                  Optional — anything the kitchen should know
+                </Text>
+              </View>
+              <TextInput
+                testID="menu-item-modal-note"
+                value={note}
+                onChangeText={(next) =>
+                  setNote(next.length > NOTE_MAX_LENGTH ? next.slice(0, NOTE_MAX_LENGTH) : next)
+                }
+                placeholder="e.g. allergic to peanuts, extra crispy"
+                placeholderTextColor={colors.text.tertiary}
+                multiline
+                numberOfLines={3}
+                maxLength={NOTE_MAX_LENGTH}
+                autoCorrect={false}
+                style={[
+                  type.body,
+                  {
+                    color: colors.text.primary,
+                    backgroundColor: colors.bg.secondary,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    minHeight: 72,
+                    textAlignVertical: 'top',
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  type.caption,
+                  { color: colors.text.tertiary, alignSelf: 'flex-end' },
+                ]}
+              >
+                {note.length}/{NOTE_MAX_LENGTH}
+              </Text>
+            </View>
 
             <View
               style={{

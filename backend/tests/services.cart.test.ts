@@ -112,6 +112,39 @@ describe('cart service', () => {
     ]);
   });
 
+  it('separates cart lines by note and stacks identical note+customizations', async () => {
+    const baseCustomizations = burgerBaseCustomizations();
+    await cartService.addItem('session-a', burger.id, 1, baseCustomizations, 'extra crispy');
+    await cartService.addItem('session-a', burger.id, 2, baseCustomizations, 'extra crispy');
+    await cartService.addItem('session-a', burger.id, 1, baseCustomizations, 'no salt');
+    await cartService.addItem('session-a', burger.id, 1, baseCustomizations);
+
+    const cart = await cartService.getCart('session-a');
+    expect(cart.items).toHaveLength(3);
+    const crispy = cart.items.find((i) => i.note === 'extra crispy');
+    const noSalt = cart.items.find((i) => i.note === 'no salt');
+    const plain = cart.items.find((i) => i.note === null);
+    expect(crispy?.quantity).toBe(3);
+    expect(noSalt?.quantity).toBe(1);
+    expect(plain?.quantity).toBe(1);
+    expect(crispy?.customizationHash).not.toBe(noSalt?.customizationHash);
+    expect(crispy?.customizationHash).not.toBe(plain?.customizationHash);
+  });
+
+  it('normalizes empty / whitespace-only notes to null', async () => {
+    const baseCustomizations = burgerBaseCustomizations();
+    await cartService.addItem('session-a', burger.id, 1, baseCustomizations, '');
+    await cartService.addItem('session-a', burger.id, 1, baseCustomizations, '   ');
+    await cartService.addItem('session-a', burger.id, 1, baseCustomizations, '  important  ');
+
+    const cart = await cartService.getCart('session-a');
+    expect(cart.items).toHaveLength(2);
+    const empty = cart.items.find((i) => i.note === null);
+    const trimmed = cart.items.find((i) => i.note === 'important');
+    expect(empty?.quantity).toBe(2);
+    expect(trimmed?.quantity).toBe(1);
+  });
+
   it('stacks identical customized lines and separates different customization hashes', async () => {
     const mediumRareBlue = {
       [burgerGroups.temperature.id]: [burgerGroups.temperature.mediumRare],
@@ -232,6 +265,32 @@ describe('cart service', () => {
     await cartService.addItem('session-a', burger.id, 1, burgerBaseCustomizations());
     await cartService.modifyItem('session-a', burger.id, 0);
     expect((await cartService.getCart('session-a')).items).toHaveLength(0);
+  });
+
+  it('modifyItem refuses to spawn a new cart line for a menuItemId with required customizations', async () => {
+    // The burger has a REQUIRED "Temperature" group. modify_item with no
+    // existing line and no customizations must not silently create one.
+    await expect(
+      cartService.modifyItem('session-a', burger.id, 2),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'MODIFY_REQUIRES_EXISTING_LINE',
+    });
+    expect((await cartService.getCart('session-a')).items).toEqual([]);
+  });
+
+  it('modifyItem refuses to spawn a new cart line for a menuItemId with only optional groups', async () => {
+    // Salmon has only OPTIONAL customization groups. The previous behaviour
+    // would happily create a bare line bypassing the agent's clarify flow
+    // (the agent should call add_to_cart for new lines). Force the agent
+    // down the right path by throwing here too.
+    await expect(
+      cartService.modifyItem('session-a', salmon.id, 2),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'MODIFY_REQUIRES_EXISTING_LINE',
+    });
+    expect((await cartService.getCart('session-a')).items).toEqual([]);
   });
 
   it('removeItem deletes an item', async () => {

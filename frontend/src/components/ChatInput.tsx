@@ -45,7 +45,11 @@ export function ChatInput({ disabled, onSend }: ChatInputProps) {
 
   useEffect(() => {
     if (transcript.trim().length > 0) {
-      setText(transcript);
+      // Append the transcript to whatever the user has already typed —
+      // a stray voice burst should never overwrite their in-progress
+      // message. Trim each side and join with a single space so we
+      // don't leave a leading/trailing gap.
+      setText((current) => [current.trim(), transcript.trim()].filter(Boolean).join(' '));
     }
   }, [transcript]);
 

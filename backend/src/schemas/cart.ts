@@ -17,6 +17,9 @@ export const AddCartBodySchema = z.object({
   menuItemId: MenuItemId,
   quantity: z.coerce.number().int().positive().max(99),
   customizations: Customizations.optional(),
+  // Optional free-text kitchen note. Trimmed and capped at 200 chars.
+  // Empty/whitespace-only is allowed; the service normalizes it to null.
+  note: z.string().max(200).optional(),
 });
 
 export const ModifyCartBodySchema = z

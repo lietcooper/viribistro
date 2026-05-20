@@ -176,6 +176,23 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
                       .join('\n')}
                   </Text>
                 ) : null}
+                {it.note ? (
+                  <Text
+                    numberOfLines={3}
+                    style={[
+                      type.caption,
+                      {
+                        color: colors.text.tertiary,
+                        fontStyle: 'italic',
+                        paddingLeft: 10,
+                        borderLeftWidth: 1,
+                        borderLeftColor: colors.border,
+                      },
+                    ]}
+                  >
+                    Note: “{it.note}”
+                  </Text>
+                ) : null}
               </View>
             ))}
           </View>

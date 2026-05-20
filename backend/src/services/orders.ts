@@ -15,6 +15,7 @@ export interface SerializedOrderItem {
   unitPrice: string;
   customizationHash: string;
   customizations: unknown;
+  note: string | null;
 }
 
 export interface SerializedOrder {
@@ -40,6 +41,7 @@ function serializeOrder(order: {
     unitPrice: { toString: () => string };
     customizationHash: string;
     customizations: unknown;
+    note: string | null;
   }[];
 }): SerializedOrder {
   return {
@@ -55,6 +57,7 @@ function serializeOrder(order: {
       unitPrice: normalizePrice(it.unitPrice),
       customizationHash: it.customizationHash,
       customizations: it.customizations,
+      note: it.note,
     })),
   };
 }
@@ -62,12 +65,17 @@ function serializeOrder(order: {
 // Per-session in-flight gate. Two concurrent POST /api/orders requests for
 // the same sessionId could both read the same persisted cart before either
 // clears it, creating duplicate orders. Serialize at the call site.
+// NOTE: this Set is single-process only — multi-instance deploys (e.g. Railway
+// horizontal scaling) won't see each other's locks, so duplicate-order
+// prevention degrades to best-effort. For now we run a single instance; a
+// DB-level idempotency key on Order is the proper fix when we scale out.
 const inFlightConfirmations: Set<string> = new Set();
 
 /**
- * Confirm a cart into a persisted Order. Re-reads each cart item's current
- * price from the DB inside the transaction so a stale in-memory snapshot
- * can't drift past a menu price update.
+ * Confirm a cart into a persisted Order. Snapshots the cart's `unitPrice` as
+ * captured at add-to-cart time — the standard "price at time of order" model
+ * — but re-validates that every menu item still exists and is still available
+ * inside the transaction before writing OrderItems.
  */
 export async function confirmCart(owner: CartOwner): Promise<SerializedOrder> {
   const key = cart.cartOwnerKey(owner);
@@ -124,6 +132,7 @@ async function confirmCartInner(owner: CartOwner): Promise<SerializedOrder> {
         unitPrice,
         customizationHash: ci.customizationHash,
         customizations: ci.customizations as unknown as Prisma.InputJsonValue,
+        note: ci.note,
       };
     });
 

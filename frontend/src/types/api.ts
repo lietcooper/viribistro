@@ -36,6 +36,12 @@ export interface MenuCustomizationOption {
   available: boolean;
 }
 
+/**
+ * Dual-shape on purpose: the API/Prisma layer emits `minSelect`/`maxSelect`,
+ * while legacy modal code and some test fixtures use `minSelections`/
+ * `maxSelections`. Readers (`minSelectionsFor`/`maxSelectionsFor`) check
+ * both — do not consolidate without updating those helpers.
+ */
 export interface MenuCustomizationGroup {
   id: string;
   name: string;
@@ -72,6 +78,7 @@ export interface CartItem {
   unitPrice: string;
   customizationHash?: string;
   customizations?: SelectedCustomization[];
+  note?: string | null;
 }
 
 export interface Cart {
@@ -112,6 +119,7 @@ export interface OrderItem {
   unitPrice: string;
   customizationHash?: string;
   customizations?: SelectedCustomization[];
+  note?: string | null;
 }
 
 export interface Order {

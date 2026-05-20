@@ -49,6 +49,11 @@ export function useSpeechToText(): UseSpeechToTextReturn {
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const finalPartsRef = useRef<string[]>([]);
+  // Set as soon as we call `recognition.start()` and cleared in
+  // onstart/onend/onerror. Guards against a rapid double-tap calling
+  // `start()` again before `onstart` flips `isListening` to true — the
+  // Web Speech API throws InvalidStateError in that window.
+  const isStartingRef = useRef(false);
 
   useEffect(() => {
     if (!Recognition) return undefined;
@@ -59,6 +64,7 @@ export function useSpeechToText(): UseSpeechToTextReturn {
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
+      isStartingRef.current = false;
       setIsListening(true);
       setError(null);
     };
@@ -86,12 +92,16 @@ export function useSpeechToText(): UseSpeechToTextReturn {
     };
 
     recognition.onerror = (event) => {
+      isStartingRef.current = false;
       setError(getErrorMessage(event.error));
       setIsListening(false);
+      setInterimTranscript('');
     };
 
     recognition.onend = () => {
+      isStartingRef.current = false;
       setIsListening(false);
+      setInterimTranscript('');
     };
 
     recognitionRef.current = recognition;
@@ -116,15 +126,22 @@ export function useSpeechToText(): UseSpeechToTextReturn {
       return;
     }
 
+    // No-op if recognition is already starting or has fully started.
+    // Without this guard, a fast double-tap calls start() twice before
+    // onstart fires, and the Web Speech API throws InvalidStateError.
+    if (isStartingRef.current || isListening) return;
+
     try {
       setError(null);
+      isStartingRef.current = true;
       recognitionRef.current.start();
     } catch (err) {
+      isStartingRef.current = false;
       console.error('[speech] failed to start recognition:', err);
       setError('Unable to start speech recognition.');
       setIsListening(false);
     }
-  }, []);
+  }, [isListening]);
 
   const stopListening = useCallback(() => {
     if (!recognitionRef.current) return;

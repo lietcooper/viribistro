@@ -6,14 +6,15 @@ const expectedToolNames = [
   'remove_from_cart',
   'modify_item',
   'get_cart',
+  'clear_cart',
   'get_menu',
   'get_item_customizations',
   'clarify',
 ] as const;
 
 describe('AI agent tool schemas', () => {
-  it('exposes all seven tools in the Anthropic tools array', () => {
-    expect(toolSchemas).toHaveLength(7);
+  it('exposes all eight tools in the Anthropic tools array', () => {
+    expect(toolSchemas).toHaveLength(8);
     const names = toolSchemas.map((t) => t.name).sort();
     expect(names).toEqual([...expectedToolNames].sort());
   });
@@ -54,6 +55,11 @@ describe('AI agent tool schemas', () => {
     expect(zod.safeParse({ itemId: 'abc', quantity: 0 }).success).toBe(false);
     expect(zod.safeParse({ itemId: 'abc', quantity: 1.5 }).success).toBe(false);
     expect(zod.safeParse({ quantity: 1 }).success).toBe(false);
+
+    // Optional kitchen note (max 200 chars).
+    expect(zod.safeParse({ itemId: 'abc', note: 'extra crispy' }).success).toBe(true);
+    expect(zod.safeParse({ itemId: 'abc', note: '' }).success).toBe(true);
+    expect(zod.safeParse({ itemId: 'abc', note: 'x'.repeat(201) }).success).toBe(false);
   });
 
   it('get_item_customizations requires itemId', () => {

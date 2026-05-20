@@ -153,6 +153,52 @@ describe('useSpeechToText', () => {
     expect(result.current.isListening).toBe(false);
   });
 
+  it('ignores a rapid second startListening call before onstart fires', () => {
+    installRecognition();
+    const { result } = renderHook(() => useSpeechToText());
+    const recognition = instances[0];
+
+    // Two fast taps. The second must be a no-op — calling start() twice
+    // before onstart fires throws InvalidStateError in the real API.
+    act(() => result.current.startListening());
+    act(() => result.current.startListening());
+
+    expect(recognition.start).toHaveBeenCalledTimes(1);
+
+    // After onstart fires, isListening is true so further start calls
+    // are still no-ops.
+    act(() => recognition.emitStart());
+    act(() => result.current.startListening());
+    expect(recognition.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the starting guard on error so the user can retry', () => {
+    installRecognition();
+    const { result } = renderHook(() => useSpeechToText());
+    const recognition = instances[0];
+
+    act(() => result.current.startListening());
+    act(() => recognition.emitError('no-speech'));
+
+    // After an error, a fresh start should be allowed.
+    act(() => result.current.startListening());
+    expect(recognition.start).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears interimTranscript on onend', () => {
+    installRecognition();
+    const { result } = renderHook(() => useSpeechToText());
+    const recognition = instances[0];
+
+    act(() => {
+      recognition.emitResult([{ transcript: 'add bur', isFinal: false }]);
+    });
+    expect(result.current.interimTranscript).toBe('add bur');
+
+    act(() => recognition.emitEnd());
+    expect(result.current.interimTranscript).toBe('');
+  });
+
   it('captures interim and final transcript results', () => {
     installRecognition();
     const { result } = renderHook(() => useSpeechToText());

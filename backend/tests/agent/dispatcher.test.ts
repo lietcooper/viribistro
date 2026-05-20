@@ -196,6 +196,45 @@ describe('dispatchTool', () => {
     );
   });
 
+  it('get_item_customizations returns a recoverable error for an unknown itemId', async () => {
+    const res = await dispatchTool(
+      {
+        id: 'tu_custom_missing',
+        name: 'get_item_customizations',
+        input: { itemId: 'cnotarealitemid' },
+      },
+      { sessionId: SESSION },
+    );
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    expect(res.is_error).toBe(true);
+    expect(res.mutated).toBe(false);
+    const parsed = JSON.parse(res.content) as { error: string; message: string };
+    expect(parsed.error).toBe('UNKNOWN_MENU_ITEM');
+    expect(parsed.message).toMatch(/Menu item not found/);
+  });
+
+  it('clear_cart empties the cart and returns mutated=true', async () => {
+    await cartService.addItem(SESSION, burgerId, 1, burgerCustomizations);
+    await cartService.addItem(SESSION, salmonId, 2);
+    expect((await cartService.getCart(SESSION)).items.length).toBe(2);
+
+    const res = await dispatchTool(
+      { id: 'tu_clear', name: 'clear_cart', input: {} },
+      { sessionId: SESSION },
+    );
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    expect(res.mutated).toBe(true);
+    const parsed = JSON.parse(res.content) as {
+      cart: { items: unknown[]; total: string };
+    };
+    expect(parsed.cart.items).toEqual([]);
+    expect(parsed.cart.total).toBe('0.00');
+    // And the real cart is empty too.
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
+  });
+
   it('modify_item with newQuantity=0 removes the item from the cart', async () => {
     await cartService.addItem(SESSION, salmonId, 3);
     const res = await dispatchTool(

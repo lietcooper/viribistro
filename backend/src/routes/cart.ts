@@ -25,13 +25,20 @@ cartRouter.get('/', validate({ query: GetCartQuerySchema }), async (req, res) =>
 });
 
 cartRouter.post('/', validate({ body: AddCartBodySchema }), async (req, res) => {
-  const { sessionId, menuItemId, quantity, customizations } = req.body as {
+  const { sessionId, menuItemId, quantity, customizations, note } = req.body as {
     sessionId: string;
     menuItemId: string;
     quantity: number;
     customizations?: Record<string, string[]>;
+    note?: string;
   };
-  const next = await cart.addItem(owner(req, sessionId), menuItemId, quantity, customizations);
+  const next = await cart.addItem(
+    owner(req, sessionId),
+    menuItemId,
+    quantity,
+    customizations,
+    note,
+  );
   res.json({ cart: next });
 });
 
@@ -42,11 +49,10 @@ cartRouter.patch('/', validate({ body: ModifyCartBodySchema }), async (req, res)
     cartItemId?: string;
     quantity: number;
   };
-  const next = await cart.modifyItem(
-    owner(req, sessionId),
-    cartItemId ?? menuItemId!,
-    quantity,
-  );
+  // ModifyCartBodySchema.refine guarantees at least one of the two ids is
+  // present — cast away the optional once we've fallen through the ??.
+  const targetId = (cartItemId ?? menuItemId) as string;
+  const next = await cart.modifyItem(owner(req, sessionId), targetId, quantity);
   res.json({ cart: next });
 });
 

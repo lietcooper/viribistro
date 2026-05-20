@@ -101,6 +101,22 @@ export function CartItem({ item }: CartItemProps) {
               ))}
             </View>
           ) : null}
+          {item.note ? (
+            <Text
+              testID={`cart-row-note-${lineId}`}
+              numberOfLines={3}
+              style={{
+                marginTop: 4,
+                fontFamily: 'DMSans-Regular',
+                fontStyle: 'italic',
+                fontSize: 12,
+                lineHeight: 16,
+                color: colors.text.tertiary,
+              }}
+            >
+              “{item.note}”
+            </Text>
+          ) : null}
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>

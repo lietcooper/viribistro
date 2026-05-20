@@ -1,276 +1,110 @@
-# ViriBistro - The Intelligent Bistro — Full Project Brief
+# AGENTS.md
 
-## Project overview
+This file provides guidance to coding agents (Codex, Cursor, and others) when working in this repository. It mirrors `CLAUDE.md` — keep the two in sync.
 
-Build a full-stack AI-powered restaurant ordering app. The frontend is a React Native (Expo) app exported as a web app and deployed to Vercel. The backend is a Node.js/Express API deployed to Railway with a PostgreSQL database. The core experience is a conversational AI agent that manages a shopping cart through natural language.
+## Repository layout
 
----
-
-## Deployment targets
-
-- **Frontend**: Expo web export → Vercel
-- **Backend**: Node.js + PostgreSQL → Railway
-- **Demo**: Recruiter opens a single Vercel URL in their browser, no installs required
-
----
-
-## Development rules
-- **Test-driven development**: Write comprehensive tests before implementing any function. Do not proceed to the next task if existing tests are failing.
-- **Version control**: Run `git add` and `git commit` after completing each logical unit of work (e.g. a screen, a route, a component, or a passing test suite). Write descriptive commit messages in the imperative mood (e.g. "Add cart drawer animation" not "added animation stuff").
-- **No silent failures**: Never use empty `catch` blocks. All errors must be logged or surfaced to the user with a meaningful message.
-- **Environment variables**: Never hardcode API keys, URLs, or secrets. All environment-specific values go in `.env` files and are accessed via `process.env` (backend) or `EXPO_PUBLIC_` prefix (frontend).
-
-## Repository structure
+This is a two-package monorepo with no root `package.json`. Always `cd` into either `backend/` or `frontend/` before running scripts — there is no top-level orchestrator. Local Postgres runs from the root via `docker compose up -d postgres` (port 5433, two DBs: `bistro_dev` and `bistro_test` — see `backend/prisma/init-test-db.sql`).
 
 ```
-bistro/
-├── frontend/          # Expo app
-└── backend/           # Node.js API
+backend/   Node 20 + Express + Prisma + Anthropic SDK     → Railway
+frontend/  Expo SDK 52 (RN web export) + NativeWind v4    → Vercel
+docs/plans/  design docs (ai-agent, backend, database, frontend, deployment)
 ```
 
----
+## Commands
 
-## Backend (Node.js / Express)
+### Backend (`cd backend`)
+- `npm run dev` — tsx watch on `src/server.ts` (port 3000)
+- `npm run build` / `npm start` — emit `dist/` then `node dist/server.js`
+- `npm run db:migrate` — `prisma migrate dev` (local dev DB)
+- `npm run db:migrate:deploy` — non-interactive deploy (CI / Railway)
+- `npm run db:seed` — `tsx prisma/seed.ts` (24+ menu items, customization groups)
+- `npm run db:reset` — drop + recreate + reseed (destructive)
+- `npm run db:studio` — Prisma Studio UI
+- `npm test` — vitest run (single-fork; setup at `tests/helpers/setup.ts` resets the test DB between files)
+- `npm run test:watch` — vitest watch
+- Run one file: `npx vitest run tests/agent/loop.test.ts`
+- Run one test: `npx vitest run -t "stops on refusal"`
+- `npm run lint` — eslint flat config
+- `npm run lint:schema` — `prisma validate`
+- `npm run format` / `npm run format:check` — prettier (shares root `.prettierignore`)
 
-### Tech stack
-- Node.js + Express
-- PostgreSQL with Prisma ORM
-- Passport.js for Google OAuth 2.0
-- JWT (short-lived access token 15min + httpOnly refresh token cookie 7 days)
-- Zod for request validation
-- Codex API (Codex-sonnet-4-20250514) or OpenAI GPT-4o for the AI agent
+### Frontend (`cd frontend`)
+- `npm run web` — Expo dev server (port 8081)
+- `npm run build:web` / `npm run export:web` — `expo export --platform web` into `dist/`
+- `npm test` — jest (preset `jest-expo`, with the long RN/Expo `transformIgnorePatterns` allowlist in `package.json`)
+- Run one file: `npx jest tests/stores/useChatStore.test.ts`
+- `npm run typecheck` — `tsc --noEmit`
+- `npm run lint` / `npm run format`
+- `npm run e2e` — Playwright; spins up its own backend (port 3100, `bistro_e2e` DB, `E2E_FAKE_AI=1`) and frontend (port 8090) via `playwright.config.ts`. Requires `docker compose up -d postgres` first.
 
-### Database schema (Prisma)
+### CI
+`.github/workflows/ci.yml` runs three jobs on every push/PR: **Backend** (lint, schema validate, format, build, vitest), **Frontend** (lint, format, typecheck, jest, web build), and **E2E** (Playwright, needs both prior jobs). The backend job stands up the Postgres container itself.
 
-```
-User
-  id, email, name, avatarUrl, provider (google | local)
-  createdAt
+## Big-picture architecture
 
-MenuItem
-  id, name, description, price, category, tags[], imageUrl, available
+### The agent loop is the heart of the system
+`POST /api/chat` is **not** a simple LLM call — it's a tool-calling loop, and the surrounding code makes load-bearing assumptions you'll break if you treat it as a chat completion.
 
-Order
-  id, userId, status (pending | confirmed), totalPrice, createdAt
-  items → OrderItem[]
+The loop lives in `backend/src/services/agent/loop.ts` (`runAgentLoop`). Read this file before changing anything in `backend/src/services/agent/`. Key invariants:
 
-OrderItem
-  id, orderId, menuItemId, quantity, unitPrice
+- **History is replayed verbatim.** `Message.content` is `Json` so we persist Anthropic's `MessageParam.content` (including `tool_use` and `tool_result` blocks) as-is. `persistence.ts` reads them back 1:1 — never transform them. A `tool_result` must immediately follow its matching `tool_use` on replay, or Anthropic rejects the request.
+- **Sequence column is the tiebreaker.** Multiple `Message` rows in one turn share a millisecond `createdAt`. `Message.sequence` is the monotonic per-conversation counter that makes replay order deterministic. Sorted by `[createdAt asc, sequence asc]`.
+- **Every `tool_use` needs a matching `tool_result` — including `clarify`.** When the model calls `clarify`, we still synthesize a `tool_result` block before short-circuiting the loop, otherwise the next turn's history is malformed. See the `clarifyQuestion` branch in `loop.ts`.
+- **System prompt is split into a static cached block + a volatile cart block.** `systemPrompt.ts` exports `buildStaticSystemPrompt(menu)` (cache_control: ephemeral) and `renderCartBlock(cart)` (no cache). Don't merge them — cart mutations would bust the prefix cache.
+- **`MAX_LOOP_ITERATIONS = 6`** with a graceful fallback reply. `stop_reason === 'refusal'` also returns a graceful reply, not an error.
+- **Tools are dispatched via Zod-validated input** in `tools.ts`. Anthropic does NOT enforce `input_schema` server-side — `dispatchTool` re-parses with Zod before touching `services/cart.ts`. A schema failure is returned to the model as a recoverable `is_error: true` tool_result so it can retry; an `AppError` from the cart service is similarly fed back in-loop.
+- **`<SUGGEST>[...]</SUGGEST>`** is a tail the model appends on text turns; `extractSuggestions` parses it into `suggestedReplies` and strips it from the user-visible text.
+- **Inject the Anthropic client.** `runAgentLoop` takes an `AnthropicLike` so tests pass a fake. `e2eFakeAnthropic.ts` is the deterministic stub used when `E2E_FAKE_AI=1` is set.
 
-Conversation
-  id, userId, sessionId, createdAt
-  messages → Message[]
+### Cart is persistent, not in-memory
+`backend/src/services/cart.ts` is the single source of truth. REST routes (`/api/cart`) and agent tools (`add_to_cart`, `remove_from_cart`, `modify_item`, `clear_cart`, `get_item_customizations`) call the same functions — never duplicate logic in routes.
 
-Message
-  id, conversationId, role (user | assistant | tool), content, createdAt
-```
+- A cart is keyed by `userId` when authenticated, else by `sessionId` (`CartOwner`). On login mid-session, the frontend's session is reused; `appendTurn` upserts conversations by `sessionId` and links them to the new `userId`.
+- **Lines stack by `customizationHash`** (sha256 over `{customizations, note}`, or literal `"base"` when neither). Different notes ⇒ separate lines (the kitchen needs each note distinct). `cart.addItem` upserts on `(cartId, menuItemId, customizationHash)`.
+- **`modify_item` will not create a new line.** It throws `MODIFY_REQUIRES_EXISTING_LINE` if no matching line exists — the agent must call `add_to_cart` to go through the customization-validation path.
+- **`remove_from_cart` / `modify_item` accept either `cartItemId` (preferred) or `itemId`.** When given `itemId` and multiple lines share that menu item, `resolveSingleLine` throws `AMBIGUOUS_CART_ITEM` (409). Prefer `cartItemId`.
+- **`Decimal` is stringified at the boundary** via `normalizePrice()` to two-decimal strings — never expose Prisma `Decimal` to JSON callers.
 
-### API routes
+### Auth model
+- Email/password (bcrypt) + Passport.js Google OAuth 2.0. JWT access (15 min) lives in memory in `useAuthStore`; refresh (7 days) is an httpOnly cookie set by the backend.
+- Frontend axios (`frontend/src/lib/api.ts`) has a **single-flight** refresh interceptor: concurrent 401s share one `/auth/refresh` call, replay once, then bail.
+- Chat is **anonymous by design**. `optionalUserId(req)` opportunistically verifies a bearer token but never errors when missing. `requireAuth` middleware is only on routes that truly need it (notably `GET /api/orders`).
+- Google OAuth is opt-in: `env.ts` `superRefine` requires `GOOGLE_CALLBACK_URL` whenever `GOOGLE_CLIENT_ID` is set — no localhost fallback to avoid silently shipping broken prod callbacks.
 
-```
-POST   /auth/google              OAuth initiation
-GET    /auth/google/callback     OAuth callback
-POST   /auth/refresh             Refresh access token
-POST   /auth/logout              Clear refresh token cookie
-POST   /auth/register            Email/password signup
-POST   /auth/login               Email/password login
+### Frontend state
+Five Zustand stores in `frontend/src/stores/`:
+- `useAuthStore` — user, token, status
+- `useCartStore` — items, total, mutators that call REST
+- `useChatStore` — messages, sessionId, isTyping, suggestedReplies
+- `useCartUiStore` — drawer open/closed, badge bounce trigger
+- `useToastStore` — toast queue
 
-GET    /api/menu                 All menu items (public)
-GET    /api/menu/:id             Single item
+The chat tab is the default landing (see `MainTabs.tsx`). `CartDrawer` is a global bottom sheet shared by all tabs. Animations use `react-native-reanimated` 3 with spring physics — don't introduce linear easing for cart/chat/menu transitions.
 
-GET    /api/cart                 Get current session cart (in-memory or Redis)
-POST   /api/cart/reset           Clear cart
+## Environment
 
-POST   /api/chat                 Main AI agent endpoint
-GET    /api/chat/history/:sessionId   Conversation history
+Backend env is validated by Zod (`src/lib/env.ts`) at boot — boot fails loudly on missing/invalid vars. Notable points:
+- `ANTHROPIC_MODEL` defaults to `claude-sonnet-4-6` (the `claude-sonnet-4-20250514` mentioned in `docs/plans/` is deprecated; do not "fix" the default to match the old doc).
+- `E2E_FAKE_AI=1` mounts `/__e2e/reset` and swaps in the fake Anthropic client.
+- `JWT_SECRET` and `JWT_REFRESH_SECRET` must each be ≥ 32 chars.
+- Test envs are wired in `.github/workflows/ci.yml` and `playwright.config.ts` — copy from there if you need to mirror them locally.
 
-POST   /api/orders               Confirm and save order
-GET    /api/orders               User order history
-```
+Frontend uses the `EXPO_PUBLIC_API_URL` prefix (Expo only exposes env vars with that prefix to the bundle).
 
-### AI agentic layer — this is the most important part
+## Conventions worth following
 
-The `/api/chat` endpoint runs a tool-calling loop, not a simple prompt-to-text call. Implement it as follows:
+- **TDD is the project's stated norm** — write tests before implementing, and don't move on with failing tests. `backend/tests/agent/fakeAnthropic.ts` is the canonical pattern for hermetic agent tests.
+- **No silent failures.** Never write an empty `catch`. Cart/agent errors flow through `AppError` (`backend/src/lib/AppError.ts`) and `middleware/errorHandler.ts`.
+- **Per-route Zod validators** live in `backend/src/schemas/` and are applied via `validate({ body, params, query })`.
+- **Imperative-mood commit messages.** Commit per logical unit (a route, a screen, a passing test file).
+- **Don't add Redis or in-memory cart caches.** The brief once described an in-memory `Map`; the production code is Prisma-backed and routes/tools share that store. Adding a second store will desync REST and chat.
 
-**Tool definitions** — define these as LLM-callable tools:
+## Things that have bitten us (read before "fixing")
 
-```js
-add_to_cart(itemId, quantity)
-remove_from_cart(itemId)
-modify_item(itemId, newQuantity)
-get_cart()
-get_menu(category?)       // optional filter by category
-clarify(question)         // agent asks user a question instead of acting
-```
-
-**Request handler logic**:
-1. Receive `{ sessionId, userId, message }` from frontend
-2. Load conversation history for this session from DB
-3. Append new user message
-4. Build messages array: `[systemPrompt, ...history]`
-5. System prompt injects live menu snapshot + current cart state
-6. Call LLM with tool definitions
-7. If model returns a tool call → execute it → append tool result → call LLM again (loop until text response)
-8. Append final assistant message to DB
-9. Return `{ reply, cartUpdate, toolsUsed }` to frontend
-
-**Ambiguity handling**: if user says "add a burger" and multiple burgers exist, the agent must call `clarify()` and return the question to the user rather than guessing.
-
-**Session memory**: store full message history in the `Conversation` / `Message` tables. Prepend system prompt fresh on every request (do not store system prompt in DB).
-
-**Cart state**: keep cart in memory (a `Map` keyed by sessionId) for speed. Persist to DB only on order confirmation.
-
----
-
-## Frontend (Expo / React Native → web)
-
-### Tech stack
-- Expo (configured for web export)
-- NativeWind v4 for styling (Tailwind classes in React Native)
-- Zustand for global state (cart, auth, session)
-- React Navigation (stack + tab navigator)
-- Axios for API calls
-
-### Screens and navigation structure
-
-```
-Stack Navigator
-├── Auth Stack
-│   ├── LoginScreen
-│   └── SignupScreen
-└── Main Tab Navigator
-    ├── MenuScreen        (tab 1)
-    ├── ChatScreen        (tab 2)  ← default landing
-    └── OrdersScreen      (tab 3)
-        └── CartDrawer    (bottom sheet, accessible from all tabs)
-```
-
-### Screen requirements
-
-**ChatScreen** (highest priority)
-- Full-screen chat interface, messages scroll from bottom
-- Typing indicator (3-dot animation) while AI is processing
-- Messages render as bubbles: user right-aligned, assistant left-aligned
-- Assistant messages can contain a "cart updated" confirmation card inline
-- Suggested prompt chips at the start of a session: "What's on the menu?", "Recommend something spicy", "Add the chef's special", "What's in my cart?"
-- Input bar fixed at bottom with send button
-- Gracefully handles clarification questions from the agent
-
-**MenuScreen**
-- Grid or list of menu items with image, name, price, tags (spicy, vegan, gluten-free, etc.)
-- Filter bar: All | Starters | Mains | Desserts | Drinks
-- Search bar filtering by name or tag
-- Each item has an "Add to cart" button with an animated +1 feedback
-- Tapping an item opens a detail modal with description and quantity selector
-
-**CartDrawer** (bottom sheet, global)
-- Slides up from bottom on cart icon tap
-- Lists all cart items with quantity controls (+ / −) and remove button
-- Running total at bottom
-- "Checkout" button that confirms order via `POST /api/orders`
-- Animated badge on cart icon showing item count (bounces on update)
-
-**OrdersScreen**
-- List of past confirmed orders with date, items, total
-- Tapping an order expands it to show item breakdown
-
-**LoginScreen / SignupScreen**
-- Email + password fields
-- "Sign in with Google" button
-- Clean, minimal design — bistro/restaurant aesthetic
-
-### UI and animation requirements (critical)
-
-- Cart badge bounces when item count changes (spring animation)
-- Cart drawer slides up with spring physics, not a linear ease
-- Menu item "Add" button gives a scale-pop feedback on press
-- Chat messages fade + slide in from bottom when they appear
-- Typing indicator uses a looping dot-pulse animation
-- Order confirmation triggers a full-screen success animation (checkmark or confetti)
-- All transitions use `react-native-reanimated` or Expo's built-in `Animated` API
-
-### State management (Zustand stores)
-
-```js
-useAuthStore    // user, token, login(), logout()
-useCartStore    // items[], addItem(), removeItem(), modifyItem(), clearCart()
-useChatStore    // messages[], sessionId, sendMessage(), isTyping
-```
-
----
-
-## Menu data
-
-Seed the database with at least 24 items across these categories. Make them feel like a real upscale bistro:
-
-**Starters (6 items)**: e.g. Burrata with heirloom tomatoes, French onion soup, Charcuterie board, Tuna tartare, Truffle arancini, Shrimp cocktail
-
-**Mains (8 items)**: e.g. Spicy chicken sandwich, Wagyu beef burger, Pan-seared salmon, Mushroom risotto, Ribeye steak (12oz), Lobster linguine, Duck confit, Grilled halloumi (vegan)
-
-**Desserts (4 items)**: e.g. Crème brûlée, Chocolate lava cake, Tiramisu, Seasonal sorbet
-
-**Drinks (6 items)**: e.g. Sparkling water (still/sparkling), Fresh lemonade, House red wine, House white wine, Craft beer, Espresso martini
-
-Each item needs: name, description (1–2 sentences), price, category, tags (from: vegan, vegetarian, spicy, gluten-free, signature), imageUrl (use Unsplash URLs or placeholder image service)
-
----
-
-## Auth requirements
-
-- Email/password signup and login (bcrypt for password hashing)
-- Google OAuth 2.0 via Passport.js ("Sign in with Google" button)
-- JWT access token (15 min expiry) stored in memory on frontend
-- Refresh token (7 days) stored in httpOnly cookie
-- Protected routes on backend require valid access token
-- Frontend Axios interceptor auto-refreshes token on 401
-
----
-
-## Environment variables
-
-**Backend `.env`**:
-```
-DATABASE_URL=
-JWT_SECRET=
-JWT_REFRESH_SECRET=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_CALLBACK_URL=
-ANTHROPIC_API_KEY=       # or OPENAI_API_KEY
-PORT=3000
-FRONTEND_URL=
-```
-
-**Frontend `.env`**:
-```
-EXPO_PUBLIC_API_URL=
-```
-
----
-
-## Quality bar
-
-- The app must feel polished and production-ready visually
-- All animations must feel physical — use spring physics not linear easing
-- The AI agent must handle multi-turn context correctly (e.g. "actually make that three" works)
-- The agent must ask for clarification when a request is ambiguous
-- The agent must gracefully handle off-topic messages ("I don't have a table booking system, but I can help you order food")
-- Mobile-first layout even on web export — max width ~480px centered on desktop
-- Error states handled gracefully on all screens (network errors, auth errors, empty states)
-
----
-
-## Implementation order (recommended)
-
-1. Backend: Prisma schema + DB setup
-2. Backend: Auth routes (email/password first, OAuth second)
-3. Backend: Menu seed data + GET /api/menu
-4. Backend: AI agent `/api/chat` with tool-calling loop
-5. Frontend: Expo project setup + NativeWind + navigation scaffold
-6. Frontend: Auth screens + Zustand auth store
-7. Frontend: MenuScreen
-8. Frontend: ChatScreen + chat store
-9. Frontend: CartDrawer + cart store
-10. Frontend: OrdersScreen
-11. Integration testing end-to-end
-12. Deploy backend to Railway, frontend to Vercel
+- `Message.sequence` exists *because* `createdAt` collisions are real — don't drop it.
+- `clarify` short-circuits but still appends a `tool_result` — don't simplify away the synthetic result block.
+- `modify_item` deliberately refuses to create new lines (forces the agent through `add_to_cart`'s customization validation).
+- The two-block system prompt split is for Anthropic prompt caching — keep them separate.
+- The Google OAuth callback URL has no default; that's intentional.

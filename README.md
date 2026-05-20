@@ -14,7 +14,7 @@ Most restaurant apps are catalog browsers with a search bar bolted on. ViriBistr
 
 - **A smooth, native-feeling UI.** Spring-physics animations on every interaction — the cart badge bounces on update, the cart drawer slides up like a bottom sheet, chat bubbles fade and slide in from the bottom, menu cards scale-pop on press, and the order-success screen plays a full-screen confirmation animation. Everything is built with `react-native-reanimated` and NativeWind v4 so the same component tree feels right on iOS, Android, and web. Mobile-first layout, capped at ~480px wide and centered on desktop so the experience never feels like a stretched-out website.
 
-- **An agent that actually does things, not just answers questions.** `/api/chat` runs a true tool-calling loop on Claude Sonnet 4. The model can call `add_to_cart`, `remove_from_cart`, `modify_item`, `get_cart`, `get_menu`, or `clarify` — and the loop runs until the model returns plain text. The system prompt is rebuilt on every request with a live menu snapshot and the current cart state, so the agent never hallucinates an item that isn't on tonight's menu, and never lies about what's in your cart.
+- **An agent that actually does things, not just answers questions.** `/api/chat` runs a true tool-calling loop on Claude Sonnet 4. The model can call `add_to_cart`, `remove_from_cart`, `modify_item`, `clear_cart`, `get_cart`, `get_menu`, `get_item_customizations`, or `clarify` — and the loop runs until the model returns plain text. The system prompt is rebuilt on every request with a live menu snapshot and the current cart state, so the agent never hallucinates an item that isn't on tonight's menu, and never lies about what's in your cart. The chat also speaks: assistant replies are read aloud via the browser's speech-synthesis APIs, and the input bar accepts voice as well as text.
 
 ---
 
@@ -24,6 +24,8 @@ The agent is intentionally action-first. Try things like:
 
 - *"What's good for someone who likes spicy food?"* — it filters the menu by tag and pitches a couple of dishes.
 - *"Add a burger and a glass of red wine."* — if there are multiple burgers, it calls `clarify()` and asks which one instead of guessing.
+- *"Add a burger, medium-rare, no onions, gluten-free bun."* — the model fetches the item's customization groups, validates the choices, and stacks the line by a customization hash so distinct configurations stay as separate cart lines.
+- *"Same again, but make it extra crispy and note the peanut allergy."* — freeform kitchen notes are persisted on the cart line; different notes for the same dish never collapse into one row.
 - *"Actually make that three burgers, and drop the wine."* — multi-turn context: it remembers the previous turn and edits the cart in place.
 - *"What's in my cart and what's the total?"* — calls `get_cart` and reads back the running total.
 - *"Recommend a starter and a dessert under $30 total."* — composes a small order across categories.
@@ -40,22 +42,28 @@ When you're happy, you can either keep chatting or jump to the Cart tab, tweak q
 bistro/
 ├── backend/                       Node.js + Express API (Railway)
 │   ├── prisma/
-│   │   ├── schema.prisma          User, MenuItem, Cart, Order, Conversation, Message
+│   │   ├── schema.prisma          User · MenuItem (+ CustomizationGroup / Option) ·
+│   │   │                          Cart / CartItem · Order / OrderItem ·
+│   │   │                          Conversation · Message
 │   │   ├── migrations/            Versioned SQL migrations
-│   │   └── seed.ts                24+ bistro menu items across 4 categories
+│   │   └── seed.ts                24+ bistro menu items across 4 categories,
+│   │                              with customization groups on burgers, steak, etc.
 │   ├── src/
 │   │   ├── app.ts                 Express app wiring (helmet, cors, routes, errors)
 │   │   ├── server.ts              HTTP bootstrap
 │   │   ├── routes/                auth · menu · cart · chat · orders · e2e
 │   │   ├── services/
 │   │   │   ├── agent/             ← AI agent core
-│   │   │   │   ├── loop.ts        Tool-calling loop runner
+│   │   │   │   ├── loop.ts        Tool-calling loop runner (max 6 iterations,
+│   │   │   │   │                   graceful refusal + max-tokens handling,
+│   │   │   │   │                   <SUGGEST> tail parsing for reply chips)
 │   │   │   │   ├── tools.ts       Tool schemas + dispatcher (Zod-validated)
-│   │   │   │   ├── systemPrompt.ts  Live menu + cart snapshot injection
+│   │   │   │   ├── systemPrompt.ts  Cache-friendly static prompt + live cart block
 │   │   │   │   ├── persistence.ts Conversation/Message replay + appendTurn
-│   │   │   │   └── anthropic.ts   SDK client factory
+│   │   │   │   ├── anthropic.ts   SDK client factory
+│   │   │   │   └── e2eFakeAnthropic.ts  Deterministic stub for E2E_FAKE_AI=1
 │   │   │   ├── auth.ts            JWT + bcrypt + refresh-token logic
-│   │   │   ├── cart.ts            Session cart store (single source of truth)
+│   │   │   ├── cart.ts            Prisma-backed cart; lines stack by customizationHash
 │   │   │   └── orders.ts          Cart → Order conversion
 │   │   ├── schemas/               Zod request validators per route
 │   │   ├── middleware/            requireAuth · validate · rateLimit · errorHandler
@@ -75,10 +83,11 @@ bistro/
 │   │   │                           MenuItemCard · MenuItemModal · MenuFilterBar ·
 │   │   │                           CartDrawer · CartBadge · CartItem · CartUpdateCard ·
 │   │   │                           SuggestedPromptChips · PrimaryButton · FormInput ·
-│   │   │                           Toast · Splash · Tag · GoogleButton
+│   │   │                           ScreenContainer · Toast · Splash · Tag · GoogleButton
 │   │   ├── stores/                Zustand: useAuthStore · useCartStore ·
 │   │   │                           useChatStore · useCartUiStore · useToastStore
-│   │   ├── hooks/                 useBootstrapAuth · useCartTotal
+│   │   ├── hooks/                 useBootstrapAuth · useCartTotal ·
+│   │   │                           useSpeechToText · useTextToSpeech
 │   │   ├── lib/                   api (Axios + 401 refresh interceptor) · session ·
 │   │   │                           oauth · env · format
 │   │   └── theme/                 Color tokens + Tailwind config bridge
@@ -101,7 +110,7 @@ bistro/
 |---|---|
 | Runtime | Node.js 20 + Express 4 (TypeScript) |
 | Database | PostgreSQL 16 + Prisma 5 ORM |
-| AI | Anthropic Claude (`claude-sonnet-4`) via `@anthropic-ai/sdk` with native tool-use |
+| AI | Anthropic Claude (`claude-sonnet-4-6` by default, model swappable via `ANTHROPIC_MODEL`) via `@anthropic-ai/sdk` with native tool-use + prompt caching |
 | Auth | Passport.js Google OAuth 2.0 + email/password (bcrypt) + JWT access (15 min) + httpOnly refresh cookie (7 days) |
 | Validation | Zod schemas at every route boundary |
 | Security | Helmet, CORS allowlist, express-rate-limit on `/api/chat` and auth routes |
@@ -126,9 +135,9 @@ bistro/
 
 ## What's done
 
-- **Backend** — full Prisma schema and migrations; menu seed (24+ items across starters / mains / desserts / drinks with tags like *spicy, vegan, vegetarian, gluten-free, signature*); email/password + Google OAuth 2.0 with JWT refresh flow; full `/api/menu`, `/api/cart`, `/api/orders` REST surface; `/api/chat` agent loop with the six tools, ambiguity handling via `clarify()`, multi-turn persistence in `Conversation` / `Message`, and conversation attachment when an anonymous user signs in mid-session.
-- **Frontend** — Expo project configured for web export; all five primary screens (Chat / Menu / Orders / Login / Signup) plus a global bottom-sheet `CartDrawer` and an `OrderSuccessScreen`; Zustand stores for auth, cart, chat, cart UI, and toasts; Axios client with auto-refresh; complete animation pass (cart badge bounce, drawer spring, chat bubble slide-in, typing dots, button scale-pop, order-success celebration); suggested-prompt chips on a fresh chat session; clarify-question rendering inline in the conversation.
-- **Quality / infra** — Zod request validation across every route; rate limiting on chat + auth; structured logging; Vitest + Supertest integration coverage; Jest + Playwright on the frontend; GitHub Actions CI; Docker Compose for local Postgres; deployed end-to-end (Vercel + Railway) and live at the demo URL above.
+- **Backend** — full Prisma schema and migrations (including `CustomizationGroup` / `CustomizationOption` and per-line `customizations` + `note` on cart and order items); menu seed (24+ items across starters / mains / desserts / drinks with tags like *spicy, vegan, vegetarian, gluten-free, signature*, plus customization groups on the dishes that need them); email/password + Google OAuth 2.0 with JWT refresh flow; full `/api/menu`, `/api/cart`, `/api/orders` REST surface; `/api/chat` agent loop with eight tools, ambiguity handling via `clarify()`, customization-aware add/modify/remove with a guarded "ambiguous cart line" 409 when the same dish appears with multiple configurations, multi-turn persistence in `Conversation` / `Message` (with a `sequence` tiebreaker so tool_use / tool_result pairs replay in protocol order), and conversation attachment when an anonymous user signs in mid-session.
+- **Frontend** — Expo project configured for web export; all five primary screens (Chat / Menu / Orders / Login / Signup) plus a global bottom-sheet `CartDrawer` and an `OrderSuccessScreen`; Zustand stores for auth, cart, chat, cart UI, and toasts; Axios client with single-flight auto-refresh on 401; complete animation pass (cart badge bounce, drawer spring, chat bubble slide-in, typing dots, button scale-pop, order-success celebration); suggested-prompt chips on a fresh chat session and dynamic follow-up chips parsed from the agent's `<SUGGEST>` tail; clarify-question rendering inline; item-customization modal with required/optional groups and freeform kitchen notes; speech-to-text input and text-to-speech read-back of assistant replies.
+- **Quality / infra** — Zod request validation across every route; rate limiting on chat + auth; structured logging; Vitest + Supertest integration coverage (including a fake Anthropic client for hermetic agent tests); Jest + Playwright on the frontend (the Playwright suite spins up its own backend with `E2E_FAKE_AI=1`); GitHub Actions CI; Docker Compose for local Postgres; deployed end-to-end (Vercel + Railway) and live at the demo URL above.
 
 ---
 
@@ -150,10 +159,10 @@ This is a demo of the AI ordering experience, not a complete bistro platform yet
 
 ### 3 · Smarter AI
 
-The current agent is pure text — it reads the menu and writes back words. Three enhancements that would materially change the experience:
+The agent already handles structured customizations and freeform notes, and the chat itself is voice-capable both ways. Three remaining enhancements that would materially change the experience:
 
 - **Visual replies in chat.** When the agent recommends a dish, render its photo, price, and a one-tap "Add" button inline in the conversation, rather than asking the user to switch to the Menu tab to see what it's talking about. The agent would emit a structured `recommend(itemIds[])` block alongside its text, and the frontend would render it as a horizontal card carousel inside the assistant's bubble.
-- **User preferences & allergies.** A short onboarding flow ("any allergies? any cuisines you love or avoid?") that stores structured preferences on the `User` model, and a system-prompt extension that injects them on every turn so the agent never recommends a peanut dish to someone with a peanut allergy, and biases recommendations toward known favorites.
+- **User preferences & allergies as first-class data.** The agent already respects ad-hoc allergy notes the user types in chat, but those notes don't survive past the current cart. A short onboarding flow ("any allergies? any cuisines you love or avoid?") would store structured preferences on the `User` model, and a system-prompt extension would inject them on every turn so the agent never recommends a peanut dish to someone with a peanut allergy, and biases recommendations toward known favorites — automatically, across sessions.
 - **A real recommendation system.** Once preferences and order history are tracked, the agent can move from "here's a popular dish" to "based on the four mains you've ordered, you'll probably love the duck confit." Initially a simple collaborative-filtering pass over `Order` history; eventually a learned embedding model that captures taste similarity across users.
 
 ---

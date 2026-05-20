@@ -175,7 +175,7 @@ describe('useCartStore — in-flight add/remove sequencing', () => {
     mockClient.get.mockResolvedValueOnce({ data: { cart: { items: [], total: '0.00' } } });
 
     useCartStore.getState().addItem(burger, 1);
-    const localId = useCartStore.getState().items[0]?.id!;
+    const localId = useCartStore.getState().items[0]?.id ?? '';
     expect(localId).toMatch(/^local-/);
 
     useCartStore.getState().removeItem(localId);

@@ -69,7 +69,18 @@ export function MenuItemCard({ item, index, onPress }: MenuItemCardProps) {
   const addScale = useSharedValue(1);
   const addStyle = useAnimatedStyle(() => ({ transform: [{ scale: addScale.value }] }));
 
+  // Items with required customization groups can't be added bare — the
+  // server will reject the line with MISSING_REQUIRED_CUSTOMIZATION. Route
+  // those to the detail modal so the user can pick the required options.
+  const hasRequiredCustomizations = (item.customizationGroups ?? []).some(
+    (group) => group.required,
+  );
+
   const handleAdd = () => {
+    if (hasRequiredCustomizations) {
+      onPress();
+      return;
+    }
     if (!reduced) {
       addScale.value = withSequence(
         withSpring(0.88, springs.snappy),

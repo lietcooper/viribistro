@@ -260,7 +260,7 @@ const MENU: MenuItemSeed[] = [
 // customization here may have one required group (no test references them).
 const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
   // ─── Starters ──────────────────────────────────────────────────────────────
-  Burrata: [
+  'Burrata with Heirloom Tomatoes': [
     {
       name: 'Bread',
       required: false,

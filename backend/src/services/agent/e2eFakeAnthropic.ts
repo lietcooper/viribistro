@@ -57,15 +57,46 @@ function latestUserIsToolResult(messages: Anthropic.MessageParam[]): boolean {
   return false;
 }
 
+function systemPromptText(params: Anthropic.MessageCreateParamsNonStreaming): string {
+  const system = Array.isArray(params.system) ? params.system : [];
+  return system.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
+}
+
 function itemIdFromSystem(
   params: Anthropic.MessageCreateParamsNonStreaming,
   itemName: string,
 ): string | null {
-  const system = Array.isArray(params.system) ? params.system : [];
-  const text = system.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
+  const text = systemPromptText(params);
   const escaped = itemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = text.match(new RegExp(`${escaped} \\(id: ([^)]+)\\)`, 'i'));
   return match?.[1] ?? null;
+}
+
+// Parse required customization groups for the named item out of the system
+// prompt. The menu renderer emits lines like
+//   - Wagyu Beef Burger (id: <itemId>) — $26.00
+//     Customization Temperature (groupId: <groupId>, required, select 1-1): Medium rare (optionId: <optionId>); ...
+// so we grab the menu item block, then each `Customization … required …`
+// line under it, and pull the first optionId per group. The fake bypasses
+// the persona's clarify flow because we want the test to land in one turn.
+function requiredCustomizationsFor(
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  itemName: string,
+): Record<string, string[]> {
+  const text = systemPromptText(params);
+  const escaped = itemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const itemMatch = text.match(
+    new RegExp(`^- ${escaped} \\(id: [^)]+\\)[^\\n]*((?:\\n  [^\\n]+)*)`, 'mi'),
+  );
+  if (!itemMatch) return {};
+  const customizations: Record<string, string[]> = {};
+  const groupRe = /^ {2}Customization [^\n]*?\(groupId: ([^,]+), required[^)]*\): ([^\n]+)/gm;
+  for (const groupMatch of itemMatch[1]!.matchAll(groupRe)) {
+    const groupId = groupMatch[1]!.trim();
+    const firstOption = groupMatch[2]!.match(/optionId: ([^\s)]+)/);
+    if (firstOption?.[1]) customizations[groupId] = [firstOption[1]];
+  }
+  return customizations;
 }
 
 export function createE2eFakeAnthropic(): AnthropicLike {
@@ -112,12 +143,14 @@ export function createE2eFakeAnthropic(): AnthropicLike {
         if (input.includes('burger') || input.includes('wagyu')) {
           const burgerId = itemIdFromSystem(params, 'Wagyu Beef Burger');
           if (burgerId) {
+            const customizations = requiredCustomizationsFor(params, 'Wagyu Beef Burger');
             return message(
               params,
               [
                 toolUseBlock('e2e_add_burger', 'add_to_cart', {
                   itemId: burgerId,
                   quantity: 1,
+                  customizations,
                 }),
               ],
               'tool_use',

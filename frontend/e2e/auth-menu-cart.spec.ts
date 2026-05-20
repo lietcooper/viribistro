@@ -16,7 +16,12 @@ test('signup, menu cart sync, checkout, and order history', async ({ page, reque
   await expect(page.getByText('Wagyu Beef Burger')).toBeVisible();
   await page.getByTestId('menu-search').fill('wagyu');
   await expect(page.getByText('Wagyu Beef Burger')).toBeVisible();
+  // Wagyu has a required Temperature group, so the "+" routes through the
+  // detail modal. Pick a temperature and submit from there.
   await page.getByTestId(`menu-add-${burgerId}`).click();
+  await expect(page.getByTestId('menu-item-modal')).toBeVisible();
+  await page.getByRole('radio', { name: 'Medium rare' }).click();
+  await page.getByTestId('menu-item-modal-add').click();
 
   await page.getByTestId('open-cart').first().click();
   await expect(page.getByTestId('cart-drawer')).toBeVisible();

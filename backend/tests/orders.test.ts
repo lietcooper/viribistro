@@ -207,12 +207,10 @@ describe('Orders routes', () => {
       const blue = cheese?.options.find((o) => o.name === 'Blue cheese');
       if (!cheese || !blue) throw new Error('seed missing burger cheese');
 
-      await cartService.addItem(
-        { sessionId: 'order-sess', userId },
-        burgerId,
-        1,
-        { ...burgerCustomizations, [cheese.id]: [blue.id] },
-      );
+      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1, {
+        ...burgerCustomizations,
+        [cheese.id]: [blue.id],
+      });
 
       const app = await buildTestApp();
       const res = await request(app)

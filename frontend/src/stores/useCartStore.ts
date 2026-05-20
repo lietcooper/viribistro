@@ -13,7 +13,12 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { getApiClient } from '@/lib/api';
 import { getSessionId } from '@/lib/session';
-import type { Cart, CartCustomizationInput, CartItem, SelectedCustomization } from '@/types/api';
+import type {
+  Cart,
+  CartCustomizationInput,
+  CartItem,
+  SelectedCustomization,
+} from '@/types/api';
 
 export interface AddCartItemInput {
   menuItemId: string;
@@ -97,11 +102,25 @@ function findLine(item: CartItem, lineId: string): boolean {
 
 function toCartCustomizationInput(
   customizations: SelectedCustomization[] | undefined,
-): CartCustomizationInput[] {
-  return (customizations ?? []).map((c) => ({
-    groupId: c.groupId,
-    optionIds: c.optionIds,
-  }));
+): CartCustomizationInput {
+  return (customizations ?? []).reduce<CartCustomizationInput>((acc, c) => {
+    acc[c.groupId] = selectedCustomizationOptionIds(c);
+    return acc;
+  }, {});
+}
+
+export function selectedCustomizationOptionIds(
+  customization: SelectedCustomization,
+): string[] {
+  if (customization.optionIds) return customization.optionIds;
+  return customization.options?.map((option) => option.optionId) ?? [];
+}
+
+export function selectedCustomizationOptionNames(
+  customization: SelectedCustomization,
+): string[] {
+  if (customization.optionNames) return customization.optionNames;
+  return customization.options?.map((option) => option.optionName) ?? [];
 }
 
 async function refreshServerCart(): Promise<void> {
@@ -154,8 +173,16 @@ export const useCartStore = create<CartState>((set) => ({
     set((state) => withTotal(state.items.filter((i) => !findLine(i, lineId))));
     void getApiClient()
       .delete<{ cart: Cart }>(`/api/cart/${lineId}`, {
-        params: { sessionId: getSessionId(), cartItemId: line?.id, menuItemId: line?.menuItemId },
-        data: { sessionId: getSessionId(), cartItemId: line?.id, menuItemId: line?.menuItemId },
+        params: {
+          sessionId: getSessionId(),
+          cartItemId: line?.id,
+          menuItemId: line?.menuItemId,
+        },
+        data: {
+          sessionId: getSessionId(),
+          cartItemId: line?.id,
+          menuItemId: line?.menuItemId,
+        },
       })
       .then((res) => useCartStore.getState().reconcile(res.data.cart))
       .catch(async (err) => {

@@ -40,8 +40,7 @@ export const toolSchemas: Anthropic.Tool[] = [
             type: 'array',
             items: { type: 'string' },
           },
-          description:
-            'Selected customization option IDs keyed by customization group ID.',
+          description: 'Selected customization option IDs keyed by customization group ID.',
         },
       },
       required: ['itemId'],
@@ -279,9 +278,7 @@ export async function dispatchTool(
         return resultOk(block.id, name, false, { menu });
       }
       case 'get_item_customizations': {
-        const { itemId } = input as z.infer<
-          (typeof toolInputZod)['get_item_customizations']
-        >;
+        const { itemId } = input as z.infer<(typeof toolInputZod)['get_item_customizations']>;
         const customizations = await loadItemCustomizationsForTool(itemId);
         return resultOk(block.id, name, false, { customizations });
       }

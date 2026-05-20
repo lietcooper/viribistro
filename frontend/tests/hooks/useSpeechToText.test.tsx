@@ -63,7 +63,9 @@ function createMockRecognition(): MockRecognition {
   return recognition;
 }
 
-function installRecognition(name: 'SpeechRecognition' | 'webkitSpeechRecognition' = 'SpeechRecognition') {
+function installRecognition(
+  name: 'SpeechRecognition' | 'webkitSpeechRecognition' = 'SpeechRecognition',
+) {
   const MockCtor = jest.fn(createMockRecognition);
 
   Object.defineProperty(window, name, {

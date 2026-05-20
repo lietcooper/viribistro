@@ -127,9 +127,7 @@ async function ensureCart(ownerInput: CartOwnerInput): Promise<{ id: string }> {
   });
 }
 
-async function lookupMenuItem(
-  menuItemId: string,
-): Promise<{
+async function lookupMenuItem(menuItemId: string): Promise<{
   id: string;
   name: string;
   price: Prisma.Decimal;
@@ -314,7 +312,9 @@ export async function addItem(
   const cart = await ensureCart(ownerInput);
 
   await prisma.cartItem.upsert({
-    where: { cartId_menuItemId_customizationHash: { cartId: cart.id, menuItemId, customizationHash } },
+    where: {
+      cartId_menuItemId_customizationHash: { cartId: cart.id, menuItemId, customizationHash },
+    },
     update: {
       quantity: { increment: quantity },
       unitPrice,
@@ -369,7 +369,13 @@ export async function modifyItem(
   const item = await lookupMenuItem(itemIdOrCartItemId);
   const { customizations, customizationHash, unitPrice } = normalizeCustomizations(item);
   await prisma.cartItem.upsert({
-    where: { cartId_menuItemId_customizationHash: { cartId: cart.id, menuItemId: item.id, customizationHash } },
+    where: {
+      cartId_menuItemId_customizationHash: {
+        cartId: cart.id,
+        menuItemId: item.id,
+        customizationHash,
+      },
+    },
     update: { quantity: newQuantity, unitPrice },
     create: {
       cartId: cart.id,

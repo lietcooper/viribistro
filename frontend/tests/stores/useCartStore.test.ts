@@ -67,7 +67,7 @@ describe('useCartStore mutations', () => {
       itemId: 'm-burger',
       menuItemId: 'm-burger',
       quantity: 1,
-      customizations: [{ groupId: 'temp', optionIds: ['medium'] }],
+      customizations: { temp: ['medium'] },
     });
   });
 

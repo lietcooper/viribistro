@@ -23,7 +23,7 @@ import Animated, {
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { getApiClient } from '@/lib/api';
 import { formatMoney } from '@/lib/format';
-import { lineTotal } from '@/stores/useCartStore';
+import { lineTotal, selectedCustomizationOptionNames } from '@/stores/useCartStore';
 import { colors } from '@/theme/colors';
 import { springs } from '@/theme/motion';
 import { shadows } from '@/theme/shadows';
@@ -139,10 +139,7 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
         {expanded ? (
           <View style={{ marginTop: 10, gap: 6 }} testID={`order-detail-${order.id}`}>
             {order.items.map((it) => (
-              <View
-                key={it.id}
-                style={{ gap: 2 }}
-              >
+              <View key={it.id} style={{ gap: 2 }}>
                 <View
                   style={{
                     flexDirection: 'row',
@@ -174,7 +171,7 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
                     {it.customizations
                       .map(
                         (customization) =>
-                          `${customization.groupName}: ${customization.optionNames.join(', ')}`,
+                          `${customization.groupName}: ${selectedCustomizationOptionNames(customization).join(', ')}`,
                       )
                       .join('\n')}
                   </Text>

@@ -56,7 +56,9 @@ describe('Public menu routes', () => {
       const app = await buildTestApp();
       const res = await request(app).get('/api/menu?category=mains');
       expect(res.status).toBe(200);
-      const burger = res.body.items.find((i: { name: string }) => i.name === 'Wagyu Beef Burger');
+      const burger = res.body.items.find(
+        (i: { name: string }) => i.name === 'Wagyu Beef Burger',
+      );
       expect(burger.customizationGroups).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

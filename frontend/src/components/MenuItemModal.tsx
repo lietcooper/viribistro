@@ -48,7 +48,10 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
 
   const selectedDelta = Object.values(selectedByGroup)
     .flat()
-    .reduce((sum, optionId) => addDecimalPrices(sum, optionById.get(optionId)?.priceDelta), '0.00');
+    .reduce(
+      (sum, optionId) => addDecimalPrices(sum, optionById.get(optionId)?.priceDelta),
+      '0.00',
+    );
   const adjustedUnitPrice = addDecimalPrices(item.price, selectedDelta);
   const totalPrice = addDecimalPrices(
     ...Array.from({ length: quantity }, () => adjustedUnitPrice),
@@ -81,7 +84,9 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
     const customizations = customizationGroups
       .map((group) => {
         const selectedIds = selectedByGroup[group.id] ?? [];
-        const selectedOptions = group.options.filter((option) => selectedIds.includes(option.id));
+        const selectedOptions = group.options.filter((option) =>
+          selectedIds.includes(option.id),
+        );
         return {
           groupId: group.id,
           groupName: group.name,
@@ -178,7 +183,7 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
 
             {customizationGroups.map((group) => {
               const selectedIds = selectedByGroup[group.id] ?? [];
-              const maxSelections = Math.max(1, group.maxSelections || 1);
+              const maxSelections = maxSelectionsFor(group);
               return (
                 <View key={group.id} style={{ marginTop: 6, gap: 8 }}>
                   <View>
@@ -195,7 +200,9 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
                       const selected = selectedIds.includes(option.id);
                       const disabled =
                         !option.available ||
-                        (!selected && selectedIds.length >= maxSelections && maxSelections > 1);
+                        (!selected &&
+                          selectedIds.length >= maxSelections &&
+                          maxSelections > 1);
                       const priceDelta = Number(option.priceDelta);
                       const priceLabel =
                         priceDelta === 0
@@ -219,11 +226,15 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
                             borderRadius: 12,
                             borderWidth: 1,
                             borderColor: selected ? colors.brand.primary : colors.border,
-                            backgroundColor: selected ? colors.brand.alpha10 : colors.bg.secondary,
+                            backgroundColor: selected
+                              ? colors.brand.alpha10
+                              : colors.bg.secondary,
                             opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
                           })}
                         >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <View
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                          >
                             <View
                               style={{
                                 width: 18,
@@ -348,10 +359,11 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
 }
 
 function selectionHint(group: MenuCustomizationGroup): string {
-  const min = group.required ? Math.max(1, group.minSelections) : group.minSelections;
-  if (group.maxSelections <= 1) return group.required ? 'Choose one' : 'Choose up to one';
-  if (min > 0) return `Choose ${min}-${group.maxSelections}`;
-  return `Choose up to ${group.maxSelections}`;
+  const min = minSelectionsFor(group);
+  const max = maxSelectionsFor(group);
+  if (max <= 1) return group.required ? 'Choose one' : 'Choose up to one';
+  if (min > 0) return `Choose ${min}-${max}`;
+  return `Choose up to ${max}`;
 }
 
 function getValidationError(
@@ -360,8 +372,17 @@ function getValidationError(
 ): string | null {
   for (const group of groups) {
     const selectedCount = selectedByGroup[group.id]?.length ?? 0;
-    const min = group.required ? Math.max(1, group.minSelections) : group.minSelections;
+    const min = minSelectionsFor(group);
     if (selectedCount < min) return `Please choose ${group.name.toLowerCase()}.`;
   }
   return null;
+}
+
+function minSelectionsFor(group: MenuCustomizationGroup): number {
+  const min = group.minSelections ?? group.minSelect ?? 0;
+  return group.required ? Math.max(1, min) : min;
+}
+
+function maxSelectionsFor(group: MenuCustomizationGroup): number {
+  return Math.max(1, group.maxSelections ?? group.maxSelect ?? 1);
 }

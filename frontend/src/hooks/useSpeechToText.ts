@@ -35,7 +35,10 @@ function getErrorMessage(error: SpeechRecognitionErrorCode): string {
 }
 
 function joinTranscript(parts: string[]): string {
-  return parts.map((part) => part.trim()).filter(Boolean).join(' ');
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function useSpeechToText(): UseSpeechToTextReturn {

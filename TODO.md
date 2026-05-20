@@ -125,3 +125,125 @@ Add browser-based speech-to-text to the Chat input using the Web Speech API. The
 - [ ] Commit tests and implementation after verification passes.
 - [ ] Use imperative commit message, for example:
   - [ ] `Add browser speech input to chat`
+
+---
+
+# Item Customization TODO
+
+## Goal
+
+Add menu item customization so guests can choose options like toppings, sauces, sides, spice level, size, or preparation when adding items to the cart. Customized versions of the same item should remain separate cart lines and preserve their details through checkout and order history.
+
+## Decisions
+
+- Store customization definitions in the database.
+- Validate all selected customizations on the backend.
+- Persist selected customizations on cart and order line items.
+- Price cart items from base menu price plus selected option price deltas.
+- Keep AI clarification text-based first; structured chat option buttons can come later.
+- Treat different customization combinations as different cart lines.
+
+## 1. Database
+
+- [ ] Add `CustomizationGroup` model.
+- [ ] Add `CustomizationOption` model.
+- [ ] Link customization groups to `MenuItem`.
+- [ ] Add `customizations Json` to `CartItem`.
+- [ ] Add `customizations Json` to `OrderItem`.
+- [ ] Add `customizationHash` to `CartItem`.
+- [ ] Replace cart item uniqueness with `cartId + menuItemId + customizationHash`.
+- [ ] Update Prisma migration.
+- [ ] Update seed data with customization groups for selected items:
+  - [ ] Chicken sandwich: sauce, toppings, spice level.
+  - [ ] Burger: cheese, toppings, doneness.
+  - [ ] Salmon: side, sauce.
+  - [ ] Drinks: size, ice level.
+- [ ] Add database tests for customization groups/options.
+- [ ] Add database tests for same item with different customizations.
+- [ ] Add database tests for order items preserving customizations.
+
+## 2. Backend
+
+- [ ] Update menu API responses to include customization groups and options.
+- [ ] Update cart request schemas to accept selected customizations.
+- [ ] Update cart response types to include selected customizations and adjusted prices.
+- [ ] Add customization validation:
+  - [ ] Selected group belongs to the menu item.
+  - [ ] Selected option belongs to the group.
+  - [ ] Required groups are satisfied.
+  - [ ] Min and max selections are respected.
+  - [ ] Unavailable options are rejected.
+- [ ] Update cart service to compute adjusted unit price.
+- [ ] Update cart service to compute stable `customizationHash`.
+- [ ] Add same item and same customizations to the existing line.
+- [ ] Add same item and different customizations as a separate line.
+- [ ] Modify cart quantities by `cartItemId`.
+- [ ] Remove cart lines by `cartItemId`.
+- [ ] Update order service to copy customizations from cart items.
+- [ ] Update order service to preserve adjusted unit prices.
+- [ ] Extend `add_to_cart` tool with `customizations`.
+- [ ] Update `modify_item` and `remove_from_cart` tool behavior for customized cart lines.
+- [ ] Add `get_item_customizations(itemId)` tool if the agent needs a focused lookup.
+- [ ] Update agent system prompt with customization rules.
+- [ ] Backend tests:
+  - [ ] Customization validation.
+  - [ ] Adjusted pricing.
+  - [ ] Duplicate customized cart lines.
+  - [ ] Order preservation.
+  - [ ] Agent clarifies when required options are missing.
+  - [ ] Agent adds directly when customizations are specified.
+
+## 3. Frontend
+
+- [ ] Update API types for customization groups and options.
+- [ ] Update API types for selected cart and order customizations.
+- [ ] Update menu data usage for customization metadata.
+- [ ] Update `MenuItemModal` to render customization groups.
+- [ ] Add radio-style controls for single-select groups.
+- [ ] Add checkbox-style controls for multi-select groups.
+- [ ] Disable unavailable customization options.
+- [ ] Show option price deltas.
+- [ ] Validate required customization groups before Add to Cart.
+- [ ] Show live adjusted price in the modal.
+- [ ] Update cart store to send selected customizations.
+- [ ] Update cart store to reconcile cart line IDs.
+- [ ] Update quantity and remove actions to target cart line IDs.
+- [ ] Update `CartDrawer` and `CartItem` to show selected customizations.
+- [ ] Support the same menu item appearing as multiple customized cart lines.
+- [ ] Update `CartUpdateCard` to show customization details.
+- [ ] Update `OrdersScreen` to show selected customizations in expanded order details.
+- [ ] Frontend tests:
+  - [ ] Modal renders customization groups.
+  - [ ] Required choices block Add to Cart.
+  - [ ] Selected options update price.
+  - [ ] Cart renders customization details.
+  - [ ] Duplicate customized item lines render separately.
+  - [ ] Order details preserve customization details.
+
+## 4. E2E
+
+- [ ] Open a customizable menu item.
+- [ ] Choose sauce and toppings.
+- [ ] Add it to the cart.
+- [ ] Add the same item with different customizations.
+- [ ] Verify two separate cart lines.
+- [ ] Checkout.
+- [ ] Verify the order keeps customization details.
+
+## 5. Verification
+
+- [ ] Run `cd backend && npm run lint`.
+- [ ] Run `cd backend && npm run build`.
+- [ ] Run `cd backend && npm run test`.
+- [ ] Run `cd frontend && npm run lint`.
+- [ ] Run `cd frontend && npm run typecheck`.
+- [ ] Run `cd frontend && npm test -- --runInBand`.
+- [ ] Run `cd frontend && npm run e2e`.
+
+## 6. Commit
+
+- [ ] Commit each logical unit after tests pass.
+- [ ] Use imperative commit messages, for example:
+  - [ ] `Add customization schema`
+  - [ ] `Validate customized cart items`
+  - [ ] `Add item customization controls`

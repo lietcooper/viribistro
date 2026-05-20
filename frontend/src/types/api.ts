@@ -40,23 +40,29 @@ export interface MenuCustomizationGroup {
   id: string;
   name: string;
   required: boolean;
-  minSelections: number;
-  maxSelections: number;
+  minSelect?: number;
+  maxSelect?: number;
+  minSelections?: number;
+  maxSelections?: number;
   options: MenuCustomizationOption[];
+}
+
+export interface SelectedCustomizationOption {
+  optionId: string;
+  optionName: string;
+  priceDelta: string;
 }
 
 export interface SelectedCustomization {
   groupId: string;
   groupName: string;
-  optionIds: string[];
-  optionNames: string[];
-  priceDelta: string;
+  options?: SelectedCustomizationOption[];
+  optionIds?: string[];
+  optionNames?: string[];
+  priceDelta?: string;
 }
 
-export interface CartCustomizationInput {
-  groupId: string;
-  optionIds: string[];
-}
+export type CartCustomizationInput = Record<string, string[]>;
 
 export interface CartItem {
   id?: string;
@@ -64,6 +70,7 @@ export interface CartItem {
   name: string;
   quantity: number;
   unitPrice: string;
+  customizationHash?: string;
   customizations?: SelectedCustomization[];
 }
 
@@ -103,6 +110,7 @@ export interface OrderItem {
   name?: string;
   quantity: number;
   unitPrice: string;
+  customizationHash?: string;
   customizations?: SelectedCustomization[];
 }
 

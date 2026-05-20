@@ -103,20 +103,18 @@ function renderCart(cart: Cart): string {
   if (cart.items.length === 0) {
     return 'The cart is currently empty.';
   }
-  const lines = cart.items.map(
-    (i) => {
-      const choices =
-        i.customizations.length === 0
-          ? ''
-          : ` [${i.customizations
-              .map(
-                (group) =>
-                  `${group.groupName}: ${group.options.map((option) => option.optionName).join(', ')}`,
-              )
-              .join('; ')}]`;
-      return `- ${i.name} (lineId: ${i.id}, itemId: ${i.menuItemId})${choices} × ${i.quantity} @ $${i.unitPrice}`;
-    },
-  );
+  const lines = cart.items.map((i) => {
+    const choices =
+      i.customizations.length === 0
+        ? ''
+        : ` [${i.customizations
+            .map(
+              (group) =>
+                `${group.groupName}: ${group.options.map((option) => option.optionName).join(', ')}`,
+            )
+            .join('; ')}]`;
+    return `- ${i.name} (lineId: ${i.id}, itemId: ${i.menuItemId})${choices} × ${i.quantity} @ $${i.unitPrice}`;
+  });
   lines.push(`Total: $${cart.total}`);
   return lines.join('\n');
 }

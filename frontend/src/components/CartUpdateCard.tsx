@@ -7,7 +7,11 @@ import { Text, View } from 'react-native';
 
 import { colors } from '@/theme/colors';
 import { formatMoney } from '@/lib/format';
-import { cartLineId, lineTotal } from '@/stores/useCartStore';
+import {
+  cartLineId,
+  lineTotal,
+  selectedCustomizationOptionNames,
+} from '@/stores/useCartStore';
 import { type } from '@/theme/typography';
 import type { Cart } from '@/types/api';
 
@@ -37,10 +41,7 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
         </Text>
       </View>
       {cart.items.slice(0, 3).map((it, index) => (
-        <View
-          key={`${cartLineId(it)}-${index}`}
-          style={{ gap: 2 }}
-        >
+        <View key={`${cartLineId(it)}-${index}`} style={{ gap: 2 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
             <Text
               numberOfLines={1}
@@ -55,7 +56,9 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
           {it.customizations?.length ? (
             <Text numberOfLines={2} style={[type.caption, { color: colors.text.tertiary }]}>
               {it.customizations
-                .map((customization) => customization.optionNames.join(', '))
+                .map((customization) =>
+                  selectedCustomizationOptionNames(customization).join(', '),
+                )
                 .join(' · ')}
             </Text>
           ) : null}

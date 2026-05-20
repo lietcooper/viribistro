@@ -42,7 +42,11 @@ cartRouter.patch('/', validate({ body: ModifyCartBodySchema }), async (req, res)
     cartItemId?: string;
     quantity: number;
   };
-  const next = await cart.modifyItem(owner(req, sessionId), cartItemId ?? menuItemId!, quantity);
+  const next = await cart.modifyItem(
+    owner(req, sessionId),
+    cartItemId ?? menuItemId!,
+    quantity,
+  );
   res.json({ cart: next });
 });
 

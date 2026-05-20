@@ -53,14 +53,12 @@ describe('Cart HTTP routes', () => {
 
   it('POST /api/cart adds an item', async () => {
     const app = await buildTestApp();
-    const res = await request(app)
-      .post('/api/cart')
-      .send({
-        sessionId: 'sess-1',
-        menuItemId: burgerId,
-        quantity: 2,
-        customizations: burgerCustomizations,
-      });
+    const res = await request(app).post('/api/cart').send({
+      sessionId: 'sess-1',
+      menuItemId: burgerId,
+      quantity: 2,
+      customizations: burgerCustomizations,
+    });
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toHaveLength(1);
     expect(res.body.cart.items[0].quantity).toBe(2);

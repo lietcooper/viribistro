@@ -7,7 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { cartLineId, useCartStore } from '@/stores/useCartStore';
+import {
+  cartLineId,
+  selectedCustomizationOptionNames,
+  useCartStore,
+} from '@/stores/useCartStore';
 import { colors } from '@/theme/colors';
 import { formatMoney } from '@/lib/format';
 import type { CartItem as CartItemType } from '@/types/api';
@@ -91,7 +95,8 @@ export function CartItem({ item }: CartItemProps) {
                     color: colors.text.tertiary,
                   }}
                 >
-                  {customization.groupName}: {customization.optionNames.join(', ')}
+                  {customization.groupName}:{' '}
+                  {selectedCustomizationOptionNames(customization).join(', ')}
                 </Text>
               ))}
             </View>

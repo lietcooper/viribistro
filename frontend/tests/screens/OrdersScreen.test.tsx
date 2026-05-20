@@ -46,14 +46,31 @@ const FAKE_ORDERS = {
     {
       id: 'o_1',
       status: 'confirmed',
-      totalPrice: '52.00',
+      totalPrice: '76.00',
       createdAt: '2026-05-12T10:00:00.000Z',
       items: [
         {
           id: 'oi_1',
           menuItemId: 'mi_burger',
+          name: 'Wagyu Burger',
           quantity: 2,
-          unitPrice: '24.00',
+          unitPrice: '31.00',
+          customizations: [
+            {
+              groupId: 'temp',
+              groupName: 'Temperature',
+              optionIds: ['medium'],
+              optionNames: ['Medium'],
+              priceDelta: '2.00',
+            },
+            {
+              groupId: 'sides',
+              groupName: 'Sides',
+              optionIds: ['fries'],
+              optionNames: ['Frites'],
+              priceDelta: '5.00',
+            },
+          ],
         },
         {
           id: 'oi_2',
@@ -86,7 +103,7 @@ describe('OrdersScreen', () => {
     await waitFor(() => expect(screen.getByTestId('orders-list')).toBeTruthy());
 
     expect(screen.getByText('2 × Wagyu Burger, 1 × Tuna Tartare')).toBeTruthy();
-    expect(screen.getByText('$52.00')).toBeTruthy();
+    expect(screen.getByText('$76.00')).toBeTruthy();
   });
 
   it('expands the row to show the full breakdown when tapped', async () => {
@@ -96,6 +113,7 @@ describe('OrdersScreen', () => {
 
     fireEvent.press(screen.getByTestId('order-card-o_1'));
     expect(screen.getByTestId('order-detail-o_1')).toBeTruthy();
+    expect(screen.getByText('Temperature: Medium\nSides: Frites')).toBeTruthy();
   });
 
   it('renders the empty state when there are no orders', async () => {

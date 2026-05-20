@@ -57,20 +57,66 @@ describe('CartDrawer', () => {
 
   it('quantity controls dispatch modifyItem on the store', () => {
     useCartStore.setState({
-      items: [{ menuItemId: 'a', name: 'A', quantity: 2, unitPrice: '5.00' }],
+      items: [{ id: 'line-a', menuItemId: 'a', name: 'A', quantity: 2, unitPrice: '5.00' }],
       total: '10',
     });
     render(<CartDrawer />);
     act(() => useCartUiStore.getState().openDrawer());
 
-    fireEvent.press(screen.getByTestId('cart-row-increment-a'));
+    fireEvent.press(screen.getByTestId('cart-row-increment-line-a'));
     expect(useCartStore.getState().items[0]?.quantity).toBe(3);
 
-    fireEvent.press(screen.getByTestId('cart-row-decrement-a'));
+    fireEvent.press(screen.getByTestId('cart-row-decrement-line-a'));
     expect(useCartStore.getState().items[0]?.quantity).toBe(2);
 
-    fireEvent.press(screen.getByTestId('cart-row-remove-a'));
+    fireEvent.press(screen.getByTestId('cart-row-remove-line-a'));
     expect(useCartStore.getState().items).toEqual([]);
+  });
+
+  it('renders duplicate menu items as separate customized lines', () => {
+    useCartStore.setState({
+      items: [
+        {
+          id: 'line-rare',
+          menuItemId: 'burger',
+          name: 'Wagyu Burger',
+          quantity: 1,
+          unitPrice: '24.00',
+          customizations: [
+            {
+              groupId: 'temp',
+              groupName: 'Temperature',
+              optionIds: ['rare'],
+              optionNames: ['Rare'],
+              priceDelta: '0.00',
+            },
+          ],
+        },
+        {
+          id: 'line-medium',
+          menuItemId: 'burger',
+          name: 'Wagyu Burger',
+          quantity: 1,
+          unitPrice: '27.00',
+          customizations: [
+            {
+              groupId: 'temp',
+              groupName: 'Temperature',
+              optionIds: ['medium'],
+              optionNames: ['Medium'],
+              priceDelta: '3.00',
+            },
+          ],
+        },
+      ],
+      total: '51.00',
+    });
+    render(<CartDrawer />);
+    act(() => useCartUiStore.getState().openDrawer());
+
+    expect(screen.getAllByText('Wagyu Burger')).toHaveLength(2);
+    expect(screen.getByText('Temperature: Rare')).toBeTruthy();
+    expect(screen.getByText('Temperature: Medium')).toBeTruthy();
   });
 
   it('Clear button is hidden when the cart is empty', () => {

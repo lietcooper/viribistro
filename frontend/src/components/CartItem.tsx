@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { useCartStore } from '@/stores/useCartStore';
+import { cartLineId, useCartStore } from '@/stores/useCartStore';
 import { colors } from '@/theme/colors';
 import { formatMoney } from '@/lib/format';
 import type { CartItem as CartItemType } from '@/types/api';
@@ -20,16 +20,17 @@ export function CartItem({ item }: CartItemProps) {
   const swipeRef = useRef<Swipeable | null>(null);
   const modifyItem = useCartStore((s) => s.modifyItem);
   const removeItem = useCartStore((s) => s.removeItem);
+  const lineId = cartLineId(item);
 
   const handleRemove = () => {
     swipeRef.current?.close();
-    removeItem(item.menuItemId);
+    removeItem(lineId);
   };
 
   const renderRightActions = () => (
     <Pressable
       onPress={handleRemove}
-      testID={`cart-row-swipe-delete-${item.menuItemId}`}
+      testID={`cart-row-swipe-delete-${lineId}`}
       accessibilityRole="button"
       accessibilityLabel={`Remove ${item.name} from cart`}
       style={{
@@ -77,12 +78,30 @@ export function CartItem({ item }: CartItemProps) {
           >
             {formatMoney(item.unitPrice)} each
           </Text>
+          {item.customizations?.length ? (
+            <View style={{ marginTop: 4, gap: 2 }}>
+              {item.customizations.map((customization) => (
+                <Text
+                  key={customization.groupId}
+                  numberOfLines={2}
+                  style={{
+                    fontFamily: 'DMSans-Regular',
+                    fontSize: 12,
+                    lineHeight: 16,
+                    color: colors.text.tertiary,
+                  }}
+                >
+                  {customization.groupName}: {customization.optionNames.join(', ')}
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Pressable
-            testID={`cart-row-decrement-${item.menuItemId}`}
-            onPress={() => modifyItem(item.menuItemId, item.quantity - 1)}
+            testID={`cart-row-decrement-${lineId}`}
+            onPress={() => modifyItem(lineId, item.quantity - 1)}
             accessibilityRole="button"
             accessibilityLabel={`Decrease quantity of ${item.name}`}
             style={{
@@ -104,13 +123,13 @@ export function CartItem({ item }: CartItemProps) {
               minWidth: 18,
               textAlign: 'center',
             }}
-            testID={`cart-row-qty-${item.menuItemId}`}
+            testID={`cart-row-qty-${lineId}`}
           >
             {item.quantity}
           </Text>
           <Pressable
-            testID={`cart-row-increment-${item.menuItemId}`}
-            onPress={() => modifyItem(item.menuItemId, item.quantity + 1)}
+            testID={`cart-row-increment-${lineId}`}
+            onPress={() => modifyItem(lineId, item.quantity + 1)}
             accessibilityRole="button"
             accessibilityLabel={`Increase quantity of ${item.name}`}
             style={{
@@ -125,7 +144,7 @@ export function CartItem({ item }: CartItemProps) {
             <Ionicons name="add" size={16} color={colors.text.inverse} />
           </Pressable>
           <Pressable
-            testID={`cart-row-remove-${item.menuItemId}`}
+            testID={`cart-row-remove-${lineId}`}
             onPress={handleRemove}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${item.name} from cart`}

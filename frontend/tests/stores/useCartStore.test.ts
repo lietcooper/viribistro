@@ -31,37 +31,69 @@ describe('useCartStore mutations', () => {
     useCartStore.getState().addItem(burger, 2);
     const { items, total } = useCartStore.getState();
     expect(items).toHaveLength(1);
-    expect(items[0]).toEqual({ ...burger, quantity: 2 });
+    expect(items[0]).toEqual(expect.objectContaining({ ...burger, quantity: 2 }));
+    expect(items[0]?.id).toMatch(/^local-m-burger-/);
     expect(total).toBe('49.00');
   });
 
-  it('coalesces a second addItem for the same item (no duplicates)', () => {
+  it('keeps repeated adds as separate cart lines', () => {
     useCartStore.getState().addItem(burger, 1);
     useCartStore.getState().addItem(burger, 2);
     const { items, total } = useCartStore.getState();
-    expect(items).toHaveLength(1);
-    expect(items[0]?.quantity).toBe(3);
+    expect(items).toHaveLength(2);
+    expect(items.map((i) => i.quantity)).toEqual([1, 2]);
     expect(total).toBe('73.50');
+  });
+
+  it('sends customization ids when adding a customized line', () => {
+    useCartStore.getState().addItem(
+      {
+        ...burger,
+        unitPrice: '27.50',
+        customizations: [
+          {
+            groupId: 'temp',
+            groupName: 'Temperature',
+            optionIds: ['medium'],
+            optionNames: ['Medium'],
+            priceDelta: '3.00',
+          },
+        ],
+      },
+      1,
+    );
+    expect(mockClient.post).toHaveBeenCalledWith('/api/cart', {
+      sessionId: 'test-session',
+      itemId: 'm-burger',
+      menuItemId: 'm-burger',
+      quantity: 1,
+      customizations: [{ groupId: 'temp', optionIds: ['medium'] }],
+    });
   });
 
   it('removeItem drops the item entirely', () => {
     useCartStore.getState().addItem(burger, 1);
     useCartStore.getState().addItem(fries, 1);
-    useCartStore.getState().removeItem('m-burger');
-    expect(useCartStore.getState().items).toEqual([{ ...fries, quantity: 1 }]);
+    const burgerLineId = useCartStore.getState().items[0]?.id ?? 'm-burger';
+    useCartStore.getState().removeItem(burgerLineId);
+    expect(useCartStore.getState().items).toEqual([
+      expect.objectContaining({ ...fries, quantity: 1 }),
+    ]);
     expect(useCartStore.getState().total).toBe('9.00');
   });
 
   it('modifyItem updates the quantity', () => {
     useCartStore.getState().addItem(burger, 1);
-    useCartStore.getState().modifyItem('m-burger', 4);
+    const lineId = useCartStore.getState().items[0]?.id ?? 'm-burger';
+    useCartStore.getState().modifyItem(lineId, 4);
     expect(useCartStore.getState().items[0]?.quantity).toBe(4);
     expect(useCartStore.getState().total).toBe('98.00');
   });
 
   it('modifyItem with quantity <= 0 removes the item', () => {
     useCartStore.getState().addItem(burger, 1);
-    useCartStore.getState().modifyItem('m-burger', 0);
+    const lineId = useCartStore.getState().items[0]?.id ?? 'm-burger';
+    useCartStore.getState().modifyItem(lineId, 0);
     expect(useCartStore.getState().items).toEqual([]);
   });
 
@@ -89,12 +121,12 @@ describe('computeTotal', () => {
     // wire format matches the server's reconcile payload.
     expect(
       computeTotal([
-        { menuItemId: '1', name: 'A', unitPrice: '12.50', quantity: 2 },
-        { menuItemId: '2', name: 'B', unitPrice: '0.75', quantity: 4 },
+        { id: '1', menuItemId: '1', name: 'A', unitPrice: '12.50', quantity: 2 },
+        { id: '2', menuItemId: '2', name: 'B', unitPrice: '0.75', quantity: 4 },
       ]),
     ).toBe('28.00');
     expect(
-      computeTotal([{ menuItemId: '1', name: 'A', unitPrice: '4.99', quantity: 3 }]),
+      computeTotal([{ id: '1', menuItemId: '1', name: 'A', unitPrice: '4.99', quantity: 3 }]),
     ).toBe('14.97');
   });
 });

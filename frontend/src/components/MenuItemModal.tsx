@@ -8,11 +8,11 @@ import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-na
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Tag } from '@/components/Tag';
-import { useCartStore } from '@/stores/useCartStore';
+import { addDecimalPrices, useCartStore } from '@/stores/useCartStore';
 import { colors } from '@/theme/colors';
 import { type } from '@/theme/typography';
 import { formatMoney } from '@/lib/format';
-import type { MenuItem } from '@/types/api';
+import type { MenuCustomizationGroup, MenuCustomizationOption, MenuItem } from '@/types/api';
 
 interface MenuItemModalProps {
   item: MenuItem | null;
@@ -21,6 +21,7 @@ interface MenuItemModalProps {
 
 export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
   const [quantity, setQuantity] = useState(1);
+  const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string[]>>({});
   const addItem = useCartStore((s) => s.addItem);
   const { height } = useWindowDimensions();
 
@@ -29,16 +30,74 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
   // the next one. Reset whenever the underlying item changes (open,
   // close, or swap from one card to another without closing in between).
   useEffect(() => {
-    if (item) setQuantity(1);
+    if (item) {
+      setQuantity(1);
+      setSelectedByGroup({});
+    }
   }, [item?.id]);
 
   if (!item) return null;
 
   const imageHeight = Math.max(180, Math.min(280, Math.round(height * 0.34)));
+  const customizationGroups = item.customizationGroups ?? [];
+
+  const optionById = new Map<string, MenuCustomizationOption>();
+  for (const group of customizationGroups) {
+    for (const option of group.options) optionById.set(option.id, option);
+  }
+
+  const selectedDelta = Object.values(selectedByGroup)
+    .flat()
+    .reduce((sum, optionId) => addDecimalPrices(sum, optionById.get(optionId)?.priceDelta), '0.00');
+  const adjustedUnitPrice = addDecimalPrices(item.price, selectedDelta);
+  const totalPrice = addDecimalPrices(
+    ...Array.from({ length: quantity }, () => adjustedUnitPrice),
+  );
+
+  const validationError = getValidationError(customizationGroups, selectedByGroup);
+
+  const toggleOption = (group: MenuCustomizationGroup, option: MenuCustomizationOption) => {
+    if (!option.available) return;
+    setSelectedByGroup((current) => {
+      const prev = current[group.id] ?? [];
+      const exists = prev.includes(option.id);
+      const maxSelections = Math.max(1, group.maxSelections || 1);
+      const next =
+        maxSelections === 1
+          ? exists
+            ? []
+            : [option.id]
+          : exists
+            ? prev.filter((id) => id !== option.id)
+            : prev.length >= maxSelections
+              ? prev
+              : [...prev, option.id];
+      return { ...current, [group.id]: next };
+    });
+  };
 
   const submit = () => {
-    addItem({ menuItemId: item.id, name: item.name, unitPrice: item.price }, quantity);
+    if (validationError) return;
+    const customizations = customizationGroups
+      .map((group) => {
+        const selectedIds = selectedByGroup[group.id] ?? [];
+        const selectedOptions = group.options.filter((option) => selectedIds.includes(option.id));
+        return {
+          groupId: group.id,
+          groupName: group.name,
+          optionIds: selectedOptions.map((option) => option.id),
+          optionNames: selectedOptions.map((option) => option.name),
+          priceDelta: addDecimalPrices(...selectedOptions.map((option) => option.priceDelta)),
+        };
+      })
+      .filter((customization) => customization.optionIds.length > 0);
+
+    addItem(
+      { menuItemId: item.id, name: item.name, unitPrice: adjustedUnitPrice, customizations },
+      quantity,
+    );
     setQuantity(1);
+    setSelectedByGroup({});
     onClose();
   };
 
@@ -117,6 +176,95 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
               </View>
             ) : null}
 
+            {customizationGroups.map((group) => {
+              const selectedIds = selectedByGroup[group.id] ?? [];
+              const maxSelections = Math.max(1, group.maxSelections || 1);
+              return (
+                <View key={group.id} style={{ marginTop: 6, gap: 8 }}>
+                  <View>
+                    <Text style={[type.label, { color: colors.text.primary }]}>
+                      {group.name}
+                      {group.required ? ' *' : ''}
+                    </Text>
+                    <Text style={[type.caption, { color: colors.text.secondary }]}>
+                      {selectionHint(group)}
+                    </Text>
+                  </View>
+                  <View style={{ gap: 8 }}>
+                    {group.options.map((option) => {
+                      const selected = selectedIds.includes(option.id);
+                      const disabled =
+                        !option.available ||
+                        (!selected && selectedIds.length >= maxSelections && maxSelections > 1);
+                      const priceDelta = Number(option.priceDelta);
+                      const priceLabel =
+                        priceDelta === 0
+                          ? ''
+                          : `${priceDelta > 0 ? '+' : '-'}${formatMoney(Math.abs(priceDelta))}`;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          testID={`customization-option-${group.id}-${option.id}`}
+                          accessibilityRole={maxSelections === 1 ? 'radio' : 'checkbox'}
+                          accessibilityState={{ checked: selected, disabled }}
+                          disabled={disabled}
+                          onPress={() => toggleOption(group, option)}
+                          style={({ pressed }) => ({
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: selected ? colors.brand.primary : colors.border,
+                            backgroundColor: selected ? colors.brand.alpha10 : colors.bg.secondary,
+                            opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
+                          })}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <View
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: maxSelections === 1 ? 999 : 5,
+                                borderWidth: 1,
+                                borderColor: selected
+                                  ? colors.brand.primary
+                                  : colors.text.tertiary,
+                                backgroundColor: selected
+                                  ? colors.brand.primary
+                                  : colors.bg.elevated,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {selected ? (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={13}
+                                  color={colors.text.inverse}
+                                />
+                              ) : null}
+                            </View>
+                            <Text style={[type.label, { color: colors.text.primary }]}>
+                              {option.name}
+                            </Text>
+                          </View>
+                          {priceLabel ? (
+                            <Text style={[type.caption, { color: colors.text.secondary }]}>
+                              {priceLabel}
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+
             <View
               style={{
                 flexDirection: 'row',
@@ -178,9 +326,18 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
             backgroundColor: colors.bg.elevated,
           }}
         >
+          {validationError ? (
+            <Text
+              testID="menu-item-modal-validation"
+              style={[type.caption, { color: colors.error, marginBottom: 8 }]}
+            >
+              {validationError}
+            </Text>
+          ) : null}
           <PrimaryButton
-            label={`Add ${quantity} to cart`}
+            label={`Add ${quantity} to cart · ${formatMoney(totalPrice)}`}
             onPress={submit}
+            disabled={Boolean(validationError)}
             fullWidth
             testID="menu-item-modal-add"
           />
@@ -188,4 +345,23 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
       </View>
     </View>
   );
+}
+
+function selectionHint(group: MenuCustomizationGroup): string {
+  const min = group.required ? Math.max(1, group.minSelections) : group.minSelections;
+  if (group.maxSelections <= 1) return group.required ? 'Choose one' : 'Choose up to one';
+  if (min > 0) return `Choose ${min}-${group.maxSelections}`;
+  return `Choose up to ${group.maxSelections}`;
+}
+
+function getValidationError(
+  groups: MenuCustomizationGroup[],
+  selectedByGroup: Record<string, string[]>,
+): string | null {
+  for (const group of groups) {
+    const selectedCount = selectedByGroup[group.id]?.length ?? 0;
+    const min = group.required ? Math.max(1, group.minSelections) : group.minSelections;
+    if (selectedCount < min) return `Please choose ${group.name.toLowerCase()}.`;
+  }
+  return null;
 }

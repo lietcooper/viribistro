@@ -13,17 +13,21 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { getApiClient } from '@/lib/api';
 import { getSessionId } from '@/lib/session';
-import type { Cart, CartItem } from '@/types/api';
+import type { Cart, CartCustomizationInput, CartItem, SelectedCustomization } from '@/types/api';
+
+export interface AddCartItemInput {
+  menuItemId: string;
+  name: string;
+  unitPrice: string;
+  customizations?: SelectedCustomization[];
+}
 
 export interface CartState {
   items: CartItem[];
   total: string;
-  addItem: (
-    item: { menuItemId: string; name: string; unitPrice: string },
-    quantity?: number,
-  ) => void;
-  removeItem: (menuItemId: string) => void;
-  modifyItem: (menuItemId: string, newQuantity: number) => void;
+  addItem: (item: AddCartItemInput, quantity?: number) => void;
+  removeItem: (lineId: string) => void;
+  modifyItem: (lineId: string, newQuantity: number) => void;
   clearCart: () => void;
   hydrateCart: () => Promise<void>;
   reconcile: (cart: Cart) => void;
@@ -42,6 +46,15 @@ function centsToDecimal(totalCents: bigint): string {
   const whole = totalCents / 100n;
   const frac = totalCents % 100n;
   return `${whole.toString()}.${frac.toString().padStart(2, '0')}`;
+}
+
+export function addDecimalPrices(...prices: Array<string | number | undefined>): string {
+  return centsToDecimal(
+    prices.reduce((sum, price) => {
+      if (price === undefined) return sum;
+      return sum + priceToCents(String(price));
+    }, 0n),
+  );
 }
 
 export function computeTotal(items: CartItem[]): string {
@@ -67,6 +80,30 @@ function withTotal(items: CartItem[]) {
   return { items, total: computeTotal(items) };
 }
 
+let localLineCounter = 0;
+
+function nextLocalLineId(menuItemId: string): string {
+  localLineCounter += 1;
+  return `local-${menuItemId}-${localLineCounter}`;
+}
+
+export function cartLineId(item: Pick<CartItem, 'id' | 'menuItemId'>): string {
+  return item.id ?? item.menuItemId;
+}
+
+function findLine(item: CartItem, lineId: string): boolean {
+  return item.id === lineId || (!item.id && item.menuItemId === lineId);
+}
+
+function toCartCustomizationInput(
+  customizations: SelectedCustomization[] | undefined,
+): CartCustomizationInput[] {
+  return (customizations ?? []).map((c) => ({
+    groupId: c.groupId,
+    optionIds: c.optionIds,
+  }));
+}
+
 async function refreshServerCart(): Promise<void> {
   const res = await getApiClient().get<{ cart: Cart }>('/api/cart', {
     params: { sessionId: getSessionId() },
@@ -82,22 +119,28 @@ export const useCartStore = create<CartState>((set) => ({
   items: [],
   total: '0.00',
 
-  addItem({ menuItemId, name, unitPrice }, quantity = 1) {
+  addItem({ menuItemId, name, unitPrice, customizations = [] }, quantity = 1) {
     if (quantity <= 0) return;
     set((state) => {
-      const existing = state.items.find((i) => i.menuItemId === menuItemId);
-      const nextItems = existing
-        ? state.items.map((i) =>
-            i.menuItemId === menuItemId ? { ...i, quantity: i.quantity + quantity } : i,
-          )
-        : [...state.items, { menuItemId, name, unitPrice, quantity }];
-      return withTotal(nextItems);
+      return withTotal([
+        ...state.items,
+        {
+          id: nextLocalLineId(menuItemId),
+          menuItemId,
+          name,
+          unitPrice,
+          quantity,
+          customizations,
+        },
+      ]);
     });
     void getApiClient()
       .post<{ cart: Cart }>('/api/cart', {
         sessionId: getSessionId(),
+        itemId: menuItemId,
         menuItemId,
         quantity,
+        customizations: toCartCustomizationInput(customizations),
       })
       .then((res) => useCartStore.getState().reconcile(res.data.cart))
       .catch(async (err) => {
@@ -106,11 +149,13 @@ export const useCartStore = create<CartState>((set) => ({
       });
   },
 
-  removeItem(menuItemId) {
-    set((state) => withTotal(state.items.filter((i) => i.menuItemId !== menuItemId)));
+  removeItem(lineId) {
+    const line = useCartStore.getState().items.find((i) => findLine(i, lineId));
+    set((state) => withTotal(state.items.filter((i) => !findLine(i, lineId))));
     void getApiClient()
-      .delete<{ cart: Cart }>(`/api/cart/${menuItemId}`, {
-        params: { sessionId: getSessionId() },
+      .delete<{ cart: Cart }>(`/api/cart/${lineId}`, {
+        params: { sessionId: getSessionId(), cartItemId: line?.id, menuItemId: line?.menuItemId },
+        data: { sessionId: getSessionId(), cartItemId: line?.id, menuItemId: line?.menuItemId },
       })
       .then((res) => useCartStore.getState().reconcile(res.data.cart))
       .catch(async (err) => {
@@ -119,21 +164,22 @@ export const useCartStore = create<CartState>((set) => ({
       });
   },
 
-  modifyItem(menuItemId, newQuantity) {
+  modifyItem(lineId, newQuantity) {
+    const line = useCartStore.getState().items.find((i) => findLine(i, lineId));
     set((state) => {
       if (newQuantity <= 0) {
-        return withTotal(state.items.filter((i) => i.menuItemId !== menuItemId));
+        return withTotal(state.items.filter((i) => !findLine(i, lineId)));
       }
       return withTotal(
-        state.items.map((i) =>
-          i.menuItemId === menuItemId ? { ...i, quantity: newQuantity } : i,
-        ),
+        state.items.map((i) => (findLine(i, lineId) ? { ...i, quantity: newQuantity } : i)),
       );
     });
     void getApiClient()
       .patch<{ cart: Cart }>('/api/cart', {
         sessionId: getSessionId(),
-        menuItemId,
+        cartItemId: line?.id,
+        id: line?.id,
+        menuItemId: line?.menuItemId ?? lineId,
         quantity: Math.max(0, newQuantity),
       })
       .then((res) => useCartStore.getState().reconcile(res.data.cart))

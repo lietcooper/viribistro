@@ -7,7 +7,7 @@ import { Text, View } from 'react-native';
 
 import { colors } from '@/theme/colors';
 import { formatMoney } from '@/lib/format';
-import { lineTotal } from '@/stores/useCartStore';
+import { cartLineId, lineTotal } from '@/stores/useCartStore';
 import { type } from '@/theme/typography';
 import type { Cart } from '@/types/api';
 
@@ -36,20 +36,29 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
           Cart updated · {itemCount === 1 ? '1 item' : `${itemCount} items`}
         </Text>
       </View>
-      {cart.items.slice(0, 3).map((it) => (
+      {cart.items.slice(0, 3).map((it, index) => (
         <View
-          key={it.menuItemId}
-          style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+          key={`${cartLineId(it)}-${index}`}
+          style={{ gap: 2 }}
         >
-          <Text
-            numberOfLines={1}
-            style={[type.caption, { color: colors.text.primary, flex: 1 }]}
-          >
-            {it.quantity} × {it.name}
-          </Text>
-          <Text style={[type.caption, { color: colors.text.secondary }]}>
-            {formatMoney(lineTotal(it.unitPrice, it.quantity))}
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+            <Text
+              numberOfLines={1}
+              style={[type.caption, { color: colors.text.primary, flex: 1 }]}
+            >
+              {it.quantity} × {it.name}
+            </Text>
+            <Text style={[type.caption, { color: colors.text.secondary }]}>
+              {formatMoney(lineTotal(it.unitPrice, it.quantity))}
+            </Text>
+          </View>
+          {it.customizations?.length ? (
+            <Text numberOfLines={2} style={[type.caption, { color: colors.text.tertiary }]}>
+              {it.customizations
+                .map((customization) => customization.optionNames.join(', '))
+                .join(' · ')}
+            </Text>
+          ) : null}
         </View>
       ))}
       {cart.items.length > 3 ? (

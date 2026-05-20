@@ -8,10 +8,20 @@ import { useCartStore } from '@/stores/useCartStore';
 // swipe gesture itself (that depends on layout + native gesture state).
 
 const burger = {
+  id: 'line-burger-medium',
   menuItemId: 'm-burger',
   name: 'Wagyu burger',
   unitPrice: '24.50',
   quantity: 2,
+  customizations: [
+    {
+      groupId: 'temp',
+      groupName: 'Temperature',
+      optionIds: ['medium'],
+      optionNames: ['Medium'],
+      priceDelta: '0.00',
+    },
+  ],
 };
 
 const mockClient = {
@@ -38,24 +48,25 @@ describe('CartItem', () => {
     render(<CartItem item={burger} />);
     expect(screen.getByText('Wagyu burger')).toBeTruthy();
     expect(screen.getByText('$24.50 each')).toBeTruthy();
-    expect(screen.getByTestId('cart-row-qty-m-burger')).toHaveTextContent('2');
+    expect(screen.getByText('Temperature: Medium')).toBeTruthy();
+    expect(screen.getByTestId('cart-row-qty-line-burger-medium')).toHaveTextContent('2');
   });
 
   it('increment button bumps the quantity in the store', () => {
     render(<CartItem item={burger} />);
-    fireEvent.press(screen.getByTestId('cart-row-increment-m-burger'));
+    fireEvent.press(screen.getByTestId('cart-row-increment-line-burger-medium'));
     expect(useCartStore.getState().items[0]?.quantity).toBe(3);
   });
 
   it('decrement button reduces the quantity in the store', () => {
     render(<CartItem item={burger} />);
-    fireEvent.press(screen.getByTestId('cart-row-decrement-m-burger'));
+    fireEvent.press(screen.getByTestId('cart-row-decrement-line-burger-medium'));
     expect(useCartStore.getState().items[0]?.quantity).toBe(1);
   });
 
   it('remove button drops the item entirely', () => {
     render(<CartItem item={burger} />);
-    fireEvent.press(screen.getByTestId('cart-row-remove-m-burger'));
+    fireEvent.press(screen.getByTestId('cart-row-remove-line-burger-medium'));
     expect(useCartStore.getState().items).toEqual([]);
   });
 

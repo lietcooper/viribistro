@@ -26,13 +26,45 @@ export interface MenuItem {
   tags: string[];
   imageUrl: string;
   available: boolean;
+  customizationGroups?: MenuCustomizationGroup[];
+}
+
+export interface MenuCustomizationOption {
+  id: string;
+  name: string;
+  priceDelta: string;
+  available: boolean;
+}
+
+export interface MenuCustomizationGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  options: MenuCustomizationOption[];
+}
+
+export interface SelectedCustomization {
+  groupId: string;
+  groupName: string;
+  optionIds: string[];
+  optionNames: string[];
+  priceDelta: string;
+}
+
+export interface CartCustomizationInput {
+  groupId: string;
+  optionIds: string[];
 }
 
 export interface CartItem {
+  id?: string;
   menuItemId: string;
   name: string;
   quantity: number;
   unitPrice: string;
+  customizations?: SelectedCustomization[];
 }
 
 export interface Cart {
@@ -68,8 +100,10 @@ export type OrderStatus = 'pending' | 'confirmed';
 export interface OrderItem {
   id: string;
   menuItemId: string;
+  name?: string;
   quantity: number;
   unitPrice: string;
+  customizations?: SelectedCustomization[];
 }
 
 export interface Order {

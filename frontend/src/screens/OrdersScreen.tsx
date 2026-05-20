@@ -75,7 +75,7 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
   const firstTwo = order.items.slice(0, 2);
   const moreCount = Math.max(0, order.items.length - 2);
   const summary = firstTwo
-    .map((it) => `${it.quantity} × ${nameById.get(it.menuItemId) ?? 'Item'}`)
+    .map((it) => `${it.quantity} × ${it.name ?? nameById.get(it.menuItemId) ?? 'Item'}`)
     .join(', ');
 
   return (
@@ -141,18 +141,44 @@ function OrderCard({ order, index, nameById }: OrderCardProps) {
             {order.items.map((it) => (
               <View
                 key={it.id}
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
+                style={{ gap: 2 }}
               >
-                <Text style={[type.caption, { color: colors.text.primary, flex: 1 }]}>
-                  {it.quantity} × {nameById.get(it.menuItemId) ?? 'Item'}
-                </Text>
-                <Text style={[type.caption, { color: colors.text.secondary }]}>
-                  {formatMoney(lineTotal(it.unitPrice, it.quantity))}
-                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Text style={[type.caption, { color: colors.text.primary, flex: 1 }]}>
+                    {it.quantity} × {it.name ?? nameById.get(it.menuItemId) ?? 'Item'}
+                  </Text>
+                  <Text style={[type.caption, { color: colors.text.secondary }]}>
+                    {formatMoney(lineTotal(it.unitPrice, it.quantity))}
+                  </Text>
+                </View>
+                {it.customizations?.length ? (
+                  <Text
+                    numberOfLines={3}
+                    style={[
+                      type.caption,
+                      {
+                        color: colors.text.tertiary,
+                        paddingLeft: 10,
+                        borderLeftWidth: 1,
+                        borderLeftColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {it.customizations
+                      .map(
+                        (customization) =>
+                          `${customization.groupName}: ${customization.optionNames.join(', ')}`,
+                      )
+                      .join('\n')}
+                  </Text>
+                ) : null}
               </View>
             ))}
           </View>

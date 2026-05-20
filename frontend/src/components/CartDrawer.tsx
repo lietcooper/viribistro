@@ -32,7 +32,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { getApiClient } from '@/lib/api';
 import { getSessionId } from '@/lib/session';
 import { formatMoney } from '@/lib/format';
-import { useCartStore, useCartTotal } from '@/stores/useCartStore';
+import { cartLineId, useCartStore, useCartTotal } from '@/stores/useCartStore';
 import { useCartUiStore } from '@/stores/useCartUiStore';
 import { colors } from '@/theme/colors';
 import { springs } from '@/theme/motion';
@@ -316,8 +316,8 @@ export function CartDrawer({ onOrderPlaced }: CartDrawerProps = {}) {
               }}
               testID="cart-list"
             >
-              {items.map((it) => (
-                <CartItem key={it.menuItemId} item={it} />
+              {items.map((it, index) => (
+                <CartItem key={`${cartLineId(it)}-${index}`} item={it} />
               ))}
             </ScrollView>
           )}

@@ -95,12 +95,12 @@ describe('MenuScreen', () => {
 
     const cart = useCartStore.getState();
     expect(cart.items).toEqual([
-      {
+      expect.objectContaining({
         menuItemId: 'm1',
         name: 'Wagyu Burger',
         unitPrice: '24.00',
         quantity: 1,
-      },
+      }),
     ]);
   });
 
@@ -118,12 +118,12 @@ describe('MenuScreen', () => {
     });
 
     expect(useCartStore.getState().items).toEqual([
-      {
+      expect.objectContaining({
         menuItemId: 'm1',
         name: 'Wagyu Burger',
         unitPrice: '24.00',
         quantity: 2,
-      },
+      }),
     ]);
   });
 

@@ -71,3 +71,41 @@ export type UseSpeechToTextReturn = {
   stopListening: () => void;
   resetTranscript: () => void;
 };
+
+export type SpeechSynthesisErrorEventLike = {
+  type: string;
+  error?: string;
+  message?: string;
+};
+
+export type SpeechSynthesisUtteranceLike = {
+  text: string;
+  lang: string;
+  rate: number;
+  pitch: number;
+  onstart: ((event: Event) => void) | null;
+  onend: ((event: Event) => void) | null;
+  onerror: ((event: SpeechSynthesisErrorEventLike) => void) | null;
+};
+
+export type SpeechSynthesisUtteranceConstructor = new (
+  text?: string,
+) => SpeechSynthesisUtteranceLike;
+
+export type SpeechSynthesisLike = {
+  speak: (utterance: SpeechSynthesisUtteranceLike) => void;
+  cancel: () => void;
+};
+
+export type BrowserSpeechSynthesisWindow = Window & {
+  speechSynthesis?: SpeechSynthesisLike;
+  SpeechSynthesisUtterance?: SpeechSynthesisUtteranceConstructor;
+};
+
+export type UseTextToSpeechReturn = {
+  supported: boolean;
+  isSpeaking: boolean;
+  error: string | null;
+  speak: (text: string) => void;
+  stop: () => void;
+};

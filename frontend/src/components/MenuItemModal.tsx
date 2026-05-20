@@ -308,7 +308,9 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
                 testID="menu-item-modal-note"
                 value={note}
                 onChangeText={(next) =>
-                  setNote(next.length > NOTE_MAX_LENGTH ? next.slice(0, NOTE_MAX_LENGTH) : next)
+                  setNote(
+                    next.length > NOTE_MAX_LENGTH ? next.slice(0, NOTE_MAX_LENGTH) : next,
+                  )
                 }
                 placeholder="e.g. allergic to peanuts, extra crispy"
                 placeholderTextColor={colors.text.tertiary}
@@ -332,10 +334,7 @@ export function MenuItemModal({ item, onClose }: MenuItemModalProps) {
                 ]}
               />
               <Text
-                style={[
-                  type.caption,
-                  { color: colors.text.tertiary, alignSelf: 'flex-end' },
-                ]}
+                style={[type.caption, { color: colors.text.tertiary, alignSelf: 'flex-end' }]}
               >
                 {note.length}/{NOTE_MAX_LENGTH}
               </Text>

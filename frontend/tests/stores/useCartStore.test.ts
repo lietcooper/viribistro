@@ -144,7 +144,15 @@ describe('useCartStore — in-flight add/remove sequencing', () => {
     resolveAdd!({
       data: {
         cart: {
-          items: [{ id: 'real-cart-line-1', menuItemId: 'm-burger', name: 'Wagyu burger', quantity: 1, unitPrice: '24.50' }],
+          items: [
+            {
+              id: 'real-cart-line-1',
+              menuItemId: 'm-burger',
+              name: 'Wagyu burger',
+              quantity: 1,
+              unitPrice: '24.50',
+            },
+          ],
           total: '24.50',
         },
       },

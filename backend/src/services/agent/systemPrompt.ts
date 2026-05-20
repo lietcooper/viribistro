@@ -118,12 +118,14 @@ function renderMenu(menu: MenuSnapshotItem[]): string {
  */
 export function sanitizeNote(note: string | null | undefined): string {
   if (!note) return '';
-  return note
-    // eslint-disable-next-line no-control-regex -- intentional: strip control chars (\r\n, \t, etc.) to prevent prompt-injection via the user-supplied note.
-    .replace(/[\x00-\x1f\x7f]+/g, ' ')
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .trim();
+  return (
+    note
+      // eslint-disable-next-line no-control-regex -- intentional: strip control chars (\r\n, \t, etc.) to prevent prompt-injection via the user-supplied note.
+      .replace(/[\x00-\x1f\x7f]+/g, ' ')
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .trim()
+  );
 }
 
 function renderCart(cart: Cart): string {

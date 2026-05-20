@@ -305,9 +305,12 @@ export async function dispatchTool(
   try {
     switch (name) {
       case 'add_to_cart': {
-        const { itemId, quantity = 1, customizations, note } = input as z.infer<
-          (typeof toolInputZod)['add_to_cart']
-        >;
+        const {
+          itemId,
+          quantity = 1,
+          customizations,
+          note,
+        } = input as z.infer<(typeof toolInputZod)['add_to_cart']>;
         const next = await cart.addItem(ctx, itemId, quantity, customizations, note);
         return resultOk(block.id, name, true, { cart: next });
       }

@@ -206,7 +206,12 @@ describe('MenuItemModal', () => {
           maxSelect: 2,
           options: [
             { id: 'mint', name: 'Extra mint', priceDelta: '0.00', available: true },
-            { id: 'strawberry', name: 'Strawberry purée', priceDelta: '2.00', available: true },
+            {
+              id: 'strawberry',
+              name: 'Strawberry purée',
+              priceDelta: '2.00',
+              available: true,
+            },
             { id: 'lavender', name: 'Lavender syrup', priceDelta: '1.00', available: true },
           ],
         },

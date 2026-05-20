@@ -270,9 +270,7 @@ describe('cart service', () => {
   it('modifyItem refuses to spawn a new cart line for a menuItemId with required customizations', async () => {
     // The burger has a REQUIRED "Temperature" group. modify_item with no
     // existing line and no customizations must not silently create one.
-    await expect(
-      cartService.modifyItem('session-a', burger.id, 2),
-    ).rejects.toMatchObject({
+    await expect(cartService.modifyItem('session-a', burger.id, 2)).rejects.toMatchObject({
       status: 400,
       code: 'MODIFY_REQUIRES_EXISTING_LINE',
     });
@@ -284,9 +282,7 @@ describe('cart service', () => {
     // would happily create a bare line bypassing the agent's clarify flow
     // (the agent should call add_to_cart for new lines). Force the agent
     // down the right path by throwing here too.
-    await expect(
-      cartService.modifyItem('session-a', salmon.id, 2),
-    ).rejects.toMatchObject({
+    await expect(cartService.modifyItem('session-a', salmon.id, 2)).rejects.toMatchObject({
       status: 400,
       code: 'MODIFY_REQUIRES_EXISTING_LINE',
     });

@@ -65,10 +65,7 @@ export function CartUpdateCard({ cart }: CartUpdateCardProps) {
           {it.note ? (
             <Text
               numberOfLines={2}
-              style={[
-                type.caption,
-                { color: colors.text.tertiary, fontStyle: 'italic' },
-              ]}
+              style={[type.caption, { color: colors.text.tertiary, fontStyle: 'italic' }]}
             >
               “{it.note}”
             </Text>

@@ -25,8 +25,8 @@ export const PERSONA_HEADER: string =
   '4. CRITICAL — OPTIONAL groups. Whenever the item the user wants has any OPTIONAL customization groups they did not specify, your `clarify` MUST also mention each optional group by NAME (just the group name, not every option). Example for Spicy Chicken Sandwich: `clarify({ question: "Which heat level — Classic hot honey, Extra Nashville hot, or Mild? You can also pick a bun, side, add-ons, or ingredients to skip if you\'d like." })`. This applies whether or not the item has a required group — if it has required AND optional, combine them into ONE clarify. If the user replies without picking the optional ones, proceed without them. NEVER silently skip surfacing optional groups when they exist on the item.\n' +
   '5. When calling `add_to_cart` for a customized item, pass `customizations` as { groupId: [optionId] } using exact IDs from the menu or `get_item_customizations`.\n' +
   '6. For cart removals and quantity changes, use cartItemId from CURRENT CART whenever possible. Use menuItemId only when exactly one cart line matches.\n' +
-  "7. If multiple cart lines match a requested item name, ALWAYS call `clarify`; mention each line's customizations so the user can choose. Never remove multiple customized lines unless the user clearly asks to remove all matching lines.\n" +
-  '8. `remove_from_cart` removes an entire cart line. For requests like "remove one" or "take one off" when quantity is greater than 1, call `modify_item` with the decremented quantity instead.\n' +
+  '7. AMBIGUOUS CART LINE GUARD. Whenever CURRENT CART has more than one line for the same menu item (e.g. two Spicy Chicken Sandwiches with different customizations) AND the user refers to that item by name without singling out one line, you MUST call `clarify` first — name each candidate by its distinguishing customizations or note so the user can pick. This applies to "remove a sandwich", "remove one Spicy Chicken Sandwich", "take one off", "delete the burger", and any quantity change phrased by item name. DO NOT pick a `cartItemId` yourself. Cart lines flagged `[AMBIGUOUS: ...]` exist for exactly this case — treat that marker as a hard stop. Only proceed once the user identifies the specific line; never remove multiple customized lines unless the user clearly asks to remove all of them.\n' +
+  '8. `remove_from_cart` removes an entire cart line. Use `modify_item` with the decremented quantity for "remove one" or "take one off" ONLY when a single cart line for that item has quantity > 1. If multiple distinct lines exist for the item, rule 7 takes precedence — call `clarify` first.\n' +
   '9. If the user goes off-topic (table bookings, delivery, hours, dietary advice that requires a human, etc.), politely redirect: "I don\'t have a table booking system, but I can help you order food. Want me to recommend something?"\n' +
   '10. Reply in plain text with no markdown, no bullet lists, no headers. Two short sentences is plenty (a `clarify` question that surfaces optional groups per rule 4 may be 2–3 sentences).\n' +
   "11. After a cart mutation, briefly confirm what changed — don't recite the whole cart unless asked.\n" +
@@ -132,6 +132,14 @@ function renderCart(cart: Cart): string {
   if (cart.items.length === 0) {
     return 'The cart is currently empty.';
   }
+  // Count menuItemId occurrences so we can flag lines that share a menu item.
+  // When the model reads CURRENT CART it needs an unmissable signal — placed
+  // right next to the cartItemIds — that picking one without clarifying is
+  // wrong per rule 7.
+  const menuItemCounts = new Map<string, number>();
+  for (const i of cart.items) {
+    menuItemCounts.set(i.menuItemId, (menuItemCounts.get(i.menuItemId) ?? 0) + 1);
+  }
   const lines = cart.items.map((i) => {
     const choices =
       i.customizations.length === 0
@@ -144,7 +152,12 @@ function renderCart(cart: Cart): string {
             .join('; ')}]`;
     const safeNote = sanitizeNote(i.note);
     const note = safeNote ? ` note: "${safeNote}"` : '';
-    return `- ${i.name} (cartItemId: ${i.id}, menuItemId: ${i.menuItemId})${choices}${note} × ${i.quantity} @ $${i.unitPrice}`;
+    const dupCount = menuItemCounts.get(i.menuItemId) ?? 1;
+    const ambiguous =
+      dupCount > 1
+        ? ` [AMBIGUOUS: ${dupCount} cart lines share this menu item — per rule 7, call clarify before remove_from_cart/modify_item unless the user named THIS line's customizations]`
+        : '';
+    return `- ${i.name} (cartItemId: ${i.id}, menuItemId: ${i.menuItemId})${choices}${note} × ${i.quantity} @ $${i.unitPrice}${ambiguous}`;
   });
   lines.push(`Total: $${cart.total}`);
   return lines.join('\n');

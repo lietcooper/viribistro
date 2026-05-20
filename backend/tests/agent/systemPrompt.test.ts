@@ -90,6 +90,20 @@ describe('buildSystemPrompt', () => {
     expect(out).toMatch(/never remove multiple customized lines/i);
   });
 
+  it('rule 7 forces clarify when the user references an item by name and the cart has multiple lines for it', () => {
+    // Regression: with two Spicy Chicken Sandwich lines (different
+    // customizations) the agent removed one silently on "remove one
+    // sandwich" instead of asking which. Rule 7 must explicitly cover
+    // this "ambiguous cart line" scenario.
+    const out = buildSystemPrompt(FAKE_MENU, { items: [], total: '0' });
+    expect(out.toLowerCase()).toMatch(/ambiguous cart line guard/);
+    expect(out.toLowerCase()).toMatch(/more than one line for the same menu item/);
+    expect(out.toLowerCase()).toMatch(/remove one spicy chicken sandwich/);
+    expect(out).toMatch(/\[AMBIGUOUS: \.\.\.\]/);
+    // Rule 8 must defer to rule 7 when multiple lines exist.
+    expect(out.toLowerCase()).toMatch(/single cart line for that item has quantity > 1/);
+  });
+
   it('lists every menu item with its id, name, and price', () => {
     const out = buildSystemPrompt(FAKE_MENU, { items: [], total: '0' });
     for (const item of FAKE_MENU) {
@@ -156,6 +170,100 @@ describe('buildSystemPrompt', () => {
     expect(out).toContain('Crème Brûlée');
     expect(out).toContain('× 1');
     expect(out).toContain('$64.00');
+  });
+
+  it('flags cart lines with [AMBIGUOUS: ...] when two lines share the same menuItemId', () => {
+    // Regression: the agent silently picked one of two Spicy Chicken
+    // Sandwich lines when the user said "remove one sandwich". Putting the
+    // AMBIGUOUS marker next to each duplicate cartItemId makes the
+    // ambiguity unmissable at the point the model picks a line.
+    const cart = {
+      items: [
+        {
+          id: 'line-burger-a',
+          menuItemId: 'm-burger',
+          name: 'Wagyu Beef Burger',
+          quantity: 1,
+          unitPrice: '26.00',
+          customizationHash: 'hash-a',
+          customizations: [
+            {
+              groupId: 'g-temp',
+              groupName: 'Temperature',
+              options: [
+                {
+                  optionId: 'o-medium-rare',
+                  optionName: 'Medium rare',
+                  priceDelta: '0.00',
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'line-burger-b',
+          menuItemId: 'm-burger',
+          name: 'Wagyu Beef Burger',
+          quantity: 1,
+          unitPrice: '26.00',
+          customizationHash: 'hash-b',
+          customizations: [],
+        },
+        {
+          id: 'line-brulee',
+          menuItemId: 'd-brulee',
+          name: 'Crème Brûlée',
+          quantity: 1,
+          unitPrice: '12.00',
+          customizationHash: 'base',
+          customizations: [],
+        },
+      ],
+      total: '64.00',
+    };
+    const out = buildSystemPrompt(FAKE_MENU, cart);
+    const cartSection = out.slice(out.lastIndexOf('=== CURRENT CART ===') ?? 0);
+    // Both burger lines must carry the marker; the brûlée line must not.
+    const ambiguousLines = cartSection
+      .split('\n')
+      .filter((line) => line.includes('[AMBIGUOUS:'));
+    expect(ambiguousLines).toHaveLength(2);
+    expect(ambiguousLines.every((line) => line.includes('cartItemId: line-burger-'))).toBe(
+      true,
+    );
+    expect(ambiguousLines[0]).toMatch(/2 cart lines share this menu item/);
+    expect(ambiguousLines[0]).toMatch(/clarify/);
+    expect(cartSection).not.toMatch(/line-brulee.*\[AMBIGUOUS:/);
+  });
+
+  it('omits the AMBIGUOUS marker when each menu item appears at most once', () => {
+    const cart = {
+      items: [
+        {
+          id: 'line-burger',
+          menuItemId: 'm-burger',
+          name: 'Wagyu Beef Burger',
+          quantity: 2,
+          unitPrice: '26.00',
+          customizationHash: 'hash-burger',
+          customizations: [],
+        },
+        {
+          id: 'line-brulee',
+          menuItemId: 'd-brulee',
+          name: 'Crème Brûlée',
+          quantity: 1,
+          unitPrice: '12.00',
+          customizationHash: 'base',
+          customizations: [],
+        },
+      ],
+      total: '64.00',
+    };
+    const out = buildSystemPrompt(FAKE_MENU, cart);
+    // Quantity > 1 on a single line is NOT ambiguous — rule 8 covers it.
+    const cartSection = out.slice(out.lastIndexOf('=== CURRENT CART ===') ?? 0);
+    expect(cartSection).not.toContain('[AMBIGUOUS:');
   });
 
   it('groups menu items by category in the snapshot', () => {
@@ -240,8 +348,8 @@ describe('buildSystemPrompt', () => {
       4. CRITICAL — OPTIONAL groups. Whenever the item the user wants has any OPTIONAL customization groups they did not specify, your \`clarify\` MUST also mention each optional group by NAME (just the group name, not every option). Example for Spicy Chicken Sandwich: \`clarify({ question: \"Which heat level — Classic hot honey, Extra Nashville hot, or Mild? You can also pick a bun, side, add-ons, or ingredients to skip if you'd like.\" })\`. This applies whether or not the item has a required group — if it has required AND optional, combine them into ONE clarify. If the user replies without picking the optional ones, proceed without them. NEVER silently skip surfacing optional groups when they exist on the item.
       5. When calling \`add_to_cart\` for a customized item, pass \`customizations\` as { groupId: [optionId] } using exact IDs from the menu or \`get_item_customizations\`.
       6. For cart removals and quantity changes, use cartItemId from CURRENT CART whenever possible. Use menuItemId only when exactly one cart line matches.
-      7. If multiple cart lines match a requested item name, ALWAYS call \`clarify\`; mention each line's customizations so the user can choose. Never remove multiple customized lines unless the user clearly asks to remove all matching lines.
-      8. \`remove_from_cart\` removes an entire cart line. For requests like \"remove one\" or \"take one off\" when quantity is greater than 1, call \`modify_item\` with the decremented quantity instead.
+      7. AMBIGUOUS CART LINE GUARD. Whenever CURRENT CART has more than one line for the same menu item (e.g. two Spicy Chicken Sandwiches with different customizations) AND the user refers to that item by name without singling out one line, you MUST call \`clarify\` first — name each candidate by its distinguishing customizations or note so the user can pick. This applies to \"remove a sandwich\", \"remove one Spicy Chicken Sandwich\", \"take one off\", \"delete the burger\", and any quantity change phrased by item name. DO NOT pick a \`cartItemId\` yourself. Cart lines flagged \`[AMBIGUOUS: ...]\` exist for exactly this case — treat that marker as a hard stop. Only proceed once the user identifies the specific line; never remove multiple customized lines unless the user clearly asks to remove all of them.
+      8. \`remove_from_cart\` removes an entire cart line. Use \`modify_item\` with the decremented quantity for \"remove one\" or \"take one off\" ONLY when a single cart line for that item has quantity > 1. If multiple distinct lines exist for the item, rule 7 takes precedence — call \`clarify\` first.
       9. If the user goes off-topic (table bookings, delivery, hours, dietary advice that requires a human, etc.), politely redirect: \"I don't have a table booking system, but I can help you order food. Want me to recommend something?\"
       10. Reply in plain text with no markdown, no bullet lists, no headers. Two short sentences is plenty (a \`clarify\` question that surfaces optional groups per rule 4 may be 2–3 sentences).
       11. After a cart mutation, briefly confirm what changed — don't recite the whole cart unless asked.

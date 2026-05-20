@@ -13,13 +13,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { AppError } from '../../lib/AppError.js';
 import * as cart from '../cart.js';
+import { normalizePrice } from '../cart.js';
 
 export const toolSchemas: Anthropic.Tool[] = [
   {
     name: 'add_to_cart',
     description:
       'Add a menu item to the cart by its exact menuItemId. Quantity defaults to 1. ' +
-      'Stacks with any existing quantity for the same item.',
+      'Include customizations as { groupId: [optionId] } when the item has required choices. ' +
+      'Stacks with any existing quantity for the same item and same customizations.',
     input_schema: {
       type: 'object',
       properties: {
@@ -31,6 +33,15 @@ export const toolSchemas: Anthropic.Tool[] = [
           type: 'integer',
           minimum: 1,
           description: 'How many to add. Defaults to 1 if omitted.',
+        },
+        customizations: {
+          type: 'object',
+          additionalProperties: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          description:
+            'Selected customization option IDs keyed by customization group ID.',
         },
       },
       required: ['itemId'],
@@ -98,6 +109,21 @@ export const toolSchemas: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_item_customizations',
+    description:
+      'Return customization groups/options for one menu item. Use this before adding an item when required choices are missing.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        itemId: {
+          type: 'string',
+          description: 'The exact menu item ID from the menu snapshot.',
+        },
+      },
+      required: ['itemId'],
+    },
+  },
+  {
     name: 'clarify',
     description:
       'Ask the user a follow-up question when their request is ambiguous (e.g. ' +
@@ -121,11 +147,13 @@ export const toolSchemas: Anthropic.Tool[] = [
 // Anthropic's SDK does not enforce the `input_schema`, so we MUST validate
 // before mutating the cart.
 const Category = z.enum(['starters', 'mains', 'desserts', 'drinks']);
+const SelectedCustomizations = z.record(z.string().min(1), z.array(z.string().min(1)));
 
 export const toolInputZod = {
   add_to_cart: z.object({
     itemId: z.string().min(1),
     quantity: z.number().int().positive().optional(),
+    customizations: SelectedCustomizations.optional(),
   }),
   remove_from_cart: z.object({
     itemId: z.string().min(1),
@@ -137,6 +165,9 @@ export const toolInputZod = {
   get_cart: z.object({}).passthrough(),
   get_menu: z.object({
     category: Category.optional(),
+  }),
+  get_item_customizations: z.object({
+    itemId: z.string().min(1),
   }),
   clarify: z.object({
     question: z.string().min(1),
@@ -224,7 +255,8 @@ export async function dispatchTool(
         const { itemId, quantity = 1 } = input as z.infer<
           (typeof toolInputZod)['add_to_cart']
         >;
-        const next = await cart.addItem(ctx, itemId, quantity);
+        const { customizations } = input as z.infer<(typeof toolInputZod)['add_to_cart']>;
+        const next = await cart.addItem(ctx, itemId, quantity, customizations);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'remove_from_cart': {
@@ -245,6 +277,13 @@ export async function dispatchTool(
         const { category } = input as z.infer<(typeof toolInputZod)['get_menu']>;
         const menu = await loadMenuForTool(category);
         return resultOk(block.id, name, false, { menu });
+      }
+      case 'get_item_customizations': {
+        const { itemId } = input as z.infer<
+          (typeof toolInputZod)['get_item_customizations']
+        >;
+        const customizations = await loadItemCustomizationsForTool(itemId);
+        return resultOk(block.id, name, false, { customizations });
       }
       case 'clarify': {
         const { question } = input as z.infer<(typeof toolInputZod)['clarify']>;
@@ -300,9 +339,79 @@ async function loadMenuForTool(
       price: true,
       category: true,
       tags: true,
+      customizationGroups: {
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          required: true,
+          minSelect: true,
+          maxSelect: true,
+          options: {
+            orderBy: { sortOrder: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              priceDelta: true,
+              available: true,
+            },
+          },
+        },
+      },
     },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
   });
   // Decimal → string for JSON safety.
-  return items.map((i) => ({ ...i, price: i.price.toString() }));
+  return items.map((i) => ({
+    ...i,
+    price: i.price.toString(),
+    customizationGroups: i.customizationGroups.map((group) => ({
+      ...group,
+      options: group.options.map((option) => ({
+        ...option,
+        priceDelta: normalizePrice(option.priceDelta),
+      })),
+    })),
+  }));
+}
+
+async function loadItemCustomizationsForTool(itemId: string): Promise<unknown> {
+  const { prisma } = await import('../../lib/prisma.js');
+  const item = await prisma.menuItem.findUnique({
+    where: { id: itemId },
+    select: {
+      id: true,
+      name: true,
+      available: true,
+      customizationGroups: {
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          required: true,
+          minSelect: true,
+          maxSelect: true,
+          options: {
+            orderBy: { sortOrder: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              priceDelta: true,
+              available: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!item || !item.available) {
+    throw new AppError(400, 'UNKNOWN_MENU_ITEM', `Menu item not found: ${itemId}`);
+  }
+  return item.customizationGroups.map((group) => ({
+    ...group,
+    options: group.options.map((option) => ({
+      ...option,
+      priceDelta: normalizePrice(option.priceDelta),
+    })),
+  }));
 }

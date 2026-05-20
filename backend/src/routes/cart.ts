@@ -25,22 +25,24 @@ cartRouter.get('/', validate({ query: GetCartQuerySchema }), async (req, res) =>
 });
 
 cartRouter.post('/', validate({ body: AddCartBodySchema }), async (req, res) => {
-  const { sessionId, menuItemId, quantity } = req.body as {
+  const { sessionId, menuItemId, quantity, customizations } = req.body as {
     sessionId: string;
     menuItemId: string;
     quantity: number;
+    customizations?: Record<string, string[]>;
   };
-  const next = await cart.addItem(owner(req, sessionId), menuItemId, quantity);
+  const next = await cart.addItem(owner(req, sessionId), menuItemId, quantity, customizations);
   res.json({ cart: next });
 });
 
 cartRouter.patch('/', validate({ body: ModifyCartBodySchema }), async (req, res) => {
-  const { sessionId, menuItemId, quantity } = req.body as {
+  const { sessionId, menuItemId, cartItemId, quantity } = req.body as {
     sessionId: string;
-    menuItemId: string;
+    menuItemId?: string;
+    cartItemId?: string;
     quantity: number;
   };
-  const next = await cart.modifyItem(owner(req, sessionId), menuItemId, quantity);
+  const next = await cart.modifyItem(owner(req, sessionId), cartItemId ?? menuItemId!, quantity);
   res.json({ cart: next });
 });
 

@@ -6,12 +6,15 @@ import { prisma } from '../lib/prisma.js';
 import { AppError } from '../lib/AppError.js';
 import * as cart from './cart.js';
 import type { CartOwner } from './cart.js';
+import { normalizePrice } from './cart.js';
 
 export interface SerializedOrderItem {
   id: string;
   menuItemId: string;
   quantity: number;
   unitPrice: string;
+  customizationHash: string;
+  customizations: unknown;
 }
 
 export interface SerializedOrder {
@@ -35,6 +38,8 @@ function serializeOrder(order: {
     menuItemId: string;
     quantity: number;
     unitPrice: { toString: () => string };
+    customizationHash: string;
+    customizations: unknown;
   }[];
 }): SerializedOrder {
   return {
@@ -47,7 +52,9 @@ function serializeOrder(order: {
       id: it.id,
       menuItemId: it.menuItemId,
       quantity: it.quantity,
-      unitPrice: it.unitPrice.toString(),
+      unitPrice: normalizePrice(it.unitPrice),
+      customizationHash: it.customizationHash,
+      customizations: it.customizations,
     })),
   };
 }
@@ -88,12 +95,13 @@ async function confirmCartInner(owner: CartOwner): Promise<SerializedOrder> {
   }
 
   const persisted = await prisma.$transaction(async (tx) => {
-    // Authoritative pricing read.
+    // Confirm referenced menu items still exist and are orderable.
+    const menuItemIds = [...new Set(current.items.map((i) => i.menuItemId))];
     const menuItems = await tx.menuItem.findMany({
-      where: { id: { in: current.items.map((i) => i.menuItemId) } },
+      where: { id: { in: menuItemIds } },
       select: { id: true, price: true, available: true },
     });
-    if (menuItems.length !== current.items.length) {
+    if (menuItems.length !== menuItemIds.length) {
       throw new AppError(400, 'UNKNOWN_MENU_ITEM', 'One or more cart items no longer exist');
     }
     const unavailable = menuItems.find((m) => !m.available);
@@ -105,17 +113,17 @@ async function confirmCartInner(owner: CartOwner): Promise<SerializedOrder> {
       );
     }
 
-    const priceById = new Map(menuItems.map((m) => [m.id, m.price] as const));
-
     // total = sum(unitPrice * quantity) using Prisma Decimal arithmetic.
     let total = new Prisma.Decimal(0);
-    const itemRows = current.items.map((ci) => {
-      const unitPrice = priceById.get(ci.menuItemId)!;
+    const itemRows: Prisma.OrderItemCreateManyOrderInput[] = current.items.map((ci) => {
+      const unitPrice = new Prisma.Decimal(ci.unitPrice);
       total = total.add(unitPrice.mul(ci.quantity));
       return {
         menuItemId: ci.menuItemId,
         quantity: ci.quantity,
         unitPrice,
+        customizationHash: ci.customizationHash,
+        customizations: ci.customizations as unknown as Prisma.InputJsonValue,
       };
     });
 
@@ -124,7 +132,7 @@ async function confirmCartInner(owner: CartOwner): Promise<SerializedOrder> {
         userId: owner.userId ?? null,
         status: 'confirmed',
         totalPrice: total,
-        items: { create: itemRows },
+        items: { createMany: { data: itemRows } },
       },
       include: { items: true },
     });

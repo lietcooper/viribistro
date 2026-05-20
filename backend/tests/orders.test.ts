@@ -5,6 +5,7 @@ import { resetDb } from './helpers/resetDb.js';
 import { prisma } from '../src/lib/prisma.js';
 import { seedMenu } from '../prisma/seed.js';
 import * as cartService from '../src/services/cart.js';
+import { normalizePrice } from '../src/services/cart.js';
 
 async function registerAndLogin(): Promise<{ accessToken: string; userId: string }> {
   const app = await buildTestApp();
@@ -18,6 +19,7 @@ async function registerAndLogin(): Promise<{ accessToken: string; userId: string
 describe('Orders routes', () => {
   let burgerId: string;
   let salmonId: string;
+  let burgerCustomizations: Record<string, string[]>;
 
   beforeAll(async () => {
     await resetDb();
@@ -27,6 +29,13 @@ describe('Orders routes', () => {
     if (!b || !s) throw new Error('seed missing items');
     burgerId = b.id;
     salmonId = s.id;
+    const temperature = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: b.id, name: 'Temperature' },
+      include: { options: true },
+    });
+    const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
+    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    burgerCustomizations = { [temperature.id]: [mediumRare.id] };
   });
 
   afterAll(async () => {
@@ -43,7 +52,7 @@ describe('Orders routes', () => {
 
   describe('POST /api/orders', () => {
     it('allows guest checkout when a cart exists', async () => {
-      await cartService.addItem('order-sess', burgerId, 1);
+      await cartService.addItem('order-sess', burgerId, 1, burgerCustomizations);
       const app = await buildTestApp();
       const res = await request(app).post('/api/orders').send({ sessionId: 'order-sess' });
       expect(res.status).toBe(201);
@@ -56,7 +65,7 @@ describe('Orders routes', () => {
       // A malformed / expired Authorization header must NOT 401 the
       // request — anonymous checkout should still succeed. Guards
       // against a regression where requireAuth gets reintroduced.
-      await cartService.addItem('order-sess', burgerId, 1);
+      await cartService.addItem('order-sess', burgerId, 1, burgerCustomizations);
       const app = await buildTestApp();
       const res = await request(app)
         .post('/api/orders')
@@ -80,7 +89,7 @@ describe('Orders routes', () => {
     it('creates an Order + OrderItems in a transaction, clears the cart', async () => {
       const { accessToken, userId } = await registerAndLogin();
       const owner = { sessionId: 'order-sess', userId };
-      await cartService.addItem(owner, burgerId, 2);
+      await cartService.addItem(owner, burgerId, 2, burgerCustomizations);
       await cartService.addItem(owner, salmonId, 1);
 
       const app = await buildTestApp();
@@ -111,7 +120,12 @@ describe('Orders routes', () => {
 
     it('rejects concurrent confirmations of the same sessionId with 409 ORDER_IN_PROGRESS', async () => {
       const { accessToken, userId } = await registerAndLogin();
-      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
+      await cartService.addItem(
+        { sessionId: 'order-sess', userId },
+        burgerId,
+        1,
+        burgerCustomizations,
+      );
 
       const app = await buildTestApp();
       // Fire two simultaneous requests. The in-memory mutex keyed by
@@ -150,7 +164,12 @@ describe('Orders routes', () => {
       expect(fail.body.error.code).toBe('CART_EMPTY');
 
       // Then a real order with the same sessionId should still succeed.
-      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
+      await cartService.addItem(
+        { sessionId: 'order-sess', userId },
+        burgerId,
+        1,
+        burgerCustomizations,
+      );
       const ok = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -160,7 +179,12 @@ describe('Orders routes', () => {
 
     it('snapshots unitPrice from the menu item at confirmation time', async () => {
       const { accessToken, userId } = await registerAndLogin();
-      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
+      await cartService.addItem(
+        { sessionId: 'order-sess', userId },
+        burgerId,
+        1,
+        burgerCustomizations,
+      );
       const item = await prisma.menuItem.findUnique({ where: { id: burgerId } });
 
       const app = await buildTestApp();
@@ -171,7 +195,48 @@ describe('Orders routes', () => {
         .expect(201);
 
       const orderItem = res.body.order.items[0];
-      expect(orderItem.unitPrice).toBe(item!.price.toString());
+      expect(orderItem.unitPrice).toBe(normalizePrice(item!.price));
+    });
+
+    it('preserves selected customizations and adjusted unit prices on order items', async () => {
+      const { accessToken, userId } = await registerAndLogin();
+      const cheese = await prisma.customizationGroup.findFirst({
+        where: { menuItemId: burgerId, name: 'Cheese' },
+        include: { options: true },
+      });
+      const blue = cheese?.options.find((o) => o.name === 'Blue cheese');
+      if (!cheese || !blue) throw new Error('seed missing burger cheese');
+
+      await cartService.addItem(
+        { sessionId: 'order-sess', userId },
+        burgerId,
+        1,
+        { ...burgerCustomizations, [cheese.id]: [blue.id] },
+      );
+
+      const app = await buildTestApp();
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ sessionId: 'order-sess' })
+        .expect(201);
+
+      const orderItem = res.body.order.items[0];
+      expect(orderItem.unitPrice).toBe('29.00');
+      expect(orderItem.customizationHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(orderItem.customizations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            groupName: 'Cheese',
+            options: [
+              expect.objectContaining({
+                optionName: 'Blue cheese',
+                priceDelta: '3.00',
+              }),
+            ],
+          }),
+        ]),
+      );
     });
   });
 
@@ -186,7 +251,12 @@ describe('Orders routes', () => {
       const { accessToken, userId } = await registerAndLogin();
       // place two orders sequentially
       const app = await buildTestApp();
-      await cartService.addItem({ sessionId: 'order-sess', userId }, burgerId, 1);
+      await cartService.addItem(
+        { sessionId: 'order-sess', userId },
+        burgerId,
+        1,
+        burgerCustomizations,
+      );
       await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${accessToken}`)

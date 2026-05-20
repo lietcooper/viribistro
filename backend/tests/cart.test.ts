@@ -9,6 +9,7 @@ import { signAccessToken } from '../src/services/auth.js';
 
 describe('Cart HTTP routes', () => {
   let burgerId: string;
+  let burgerCustomizations: Record<string, string[]>;
 
   beforeAll(async () => {
     await resetDb();
@@ -16,6 +17,13 @@ describe('Cart HTTP routes', () => {
     const b = await prisma.menuItem.findFirst({ where: { name: 'Wagyu Beef Burger' } });
     if (!b) throw new Error('seed missing burger');
     burgerId = b.id;
+    const temperature = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: b.id, name: 'Temperature' },
+      include: { options: true },
+    });
+    const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
+    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    burgerCustomizations = { [temperature.id]: [mediumRare.id] };
   });
 
   afterAll(async () => {
@@ -47,7 +55,12 @@ describe('Cart HTTP routes', () => {
     const app = await buildTestApp();
     const res = await request(app)
       .post('/api/cart')
-      .send({ sessionId: 'sess-1', menuItemId: burgerId, quantity: 2 });
+      .send({
+        sessionId: 'sess-1',
+        menuItemId: burgerId,
+        quantity: 2,
+        customizations: burgerCustomizations,
+      });
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toHaveLength(1);
     expect(res.body.cart.items[0].quantity).toBe(2);
@@ -67,7 +80,12 @@ describe('Cart HTTP routes', () => {
     await request(app)
       .post('/api/cart')
       .set('Authorization', `Bearer ${tokenA}`)
-      .send({ sessionId: 'same-browser-session', menuItemId: burgerId, quantity: 1 })
+      .send({
+        sessionId: 'same-browser-session',
+        menuItemId: burgerId,
+        quantity: 1,
+        customizations: burgerCustomizations,
+      })
       .expect(200);
 
     const resB = await request(app)
@@ -92,12 +110,18 @@ describe('Cart HTTP routes', () => {
     const app = await buildTestApp();
     await request(app)
       .post('/api/cart')
-      .send({ sessionId: 'sess-1', menuItemId: burgerId, quantity: 1 })
+      .send({
+        sessionId: 'sess-1',
+        menuItemId: burgerId,
+        quantity: 1,
+        customizations: burgerCustomizations,
+      })
       .expect(200);
 
+    const cart = await cartService.getCart('sess-1');
     const res = await request(app)
       .patch('/api/cart')
-      .send({ sessionId: 'sess-1', menuItemId: burgerId, quantity: 4 });
+      .send({ sessionId: 'sess-1', cartItemId: cart.items[0].id, quantity: 4 });
     expect(res.status).toBe(200);
     expect(res.body.cart.items[0].quantity).toBe(4);
   });
@@ -106,11 +130,17 @@ describe('Cart HTTP routes', () => {
     const app = await buildTestApp();
     await request(app)
       .post('/api/cart')
-      .send({ sessionId: 'sess-1', menuItemId: burgerId, quantity: 1 })
+      .send({
+        sessionId: 'sess-1',
+        menuItemId: burgerId,
+        quantity: 1,
+        customizations: burgerCustomizations,
+      })
       .expect(200);
 
+    const cart = await cartService.getCart('sess-1');
     const res = await request(app)
-      .delete(`/api/cart/${burgerId}`)
+      .delete(`/api/cart/${cart.items[0].id}`)
       .query({ sessionId: 'sess-1' });
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toEqual([]);
@@ -120,11 +150,26 @@ describe('Cart HTTP routes', () => {
     const app = await buildTestApp();
     await request(app)
       .post('/api/cart')
-      .send({ sessionId: 'sess-1', menuItemId: burgerId, quantity: 1 })
+      .send({
+        sessionId: 'sess-1',
+        menuItemId: burgerId,
+        quantity: 1,
+        customizations: burgerCustomizations,
+      })
       .expect(200);
 
     const res = await request(app).post('/api/cart/reset').send({ sessionId: 'sess-1' });
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toEqual([]);
+  });
+
+  it('POST /api/cart validates required customizations', async () => {
+    const app = await buildTestApp();
+    const res = await request(app)
+      .post('/api/cart')
+      .send({ sessionId: 'sess-1', menuItemId: burgerId, quantity: 1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MISSING_REQUIRED_CUSTOMIZATION');
   });
 });

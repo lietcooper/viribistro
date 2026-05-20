@@ -5,6 +5,22 @@ type MenuItemSeed = Omit<Prisma.MenuItemCreateInput, 'id' | 'orderItems'> & {
   category: Category;
 };
 
+type OptionSeed = {
+  name: string;
+  priceDelta?: string;
+  available?: boolean;
+  sortOrder: number;
+};
+
+type GroupSeed = {
+  name: string;
+  required: boolean;
+  minSelect: number;
+  maxSelect: number;
+  sortOrder: number;
+  options: OptionSeed[];
+};
+
 /**
  * Curated bistro menu. Tag values are constrained to:
  * `vegan | vegetarian | spicy | gluten-free | signature`.
@@ -237,16 +253,215 @@ const MENU: MenuItemSeed[] = [
   },
 ];
 
+const CUSTOMIZATIONS: Record<string, GroupSeed[]> = {
+  'Spicy Chicken Sandwich': [
+    {
+      name: 'Heat level',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Classic hot honey', sortOrder: 1 },
+        { name: 'Extra Nashville hot', sortOrder: 2 },
+        { name: 'Mild honey glaze', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Add-ons',
+      required: false,
+      minSelect: 0,
+      maxSelect: 2,
+      sortOrder: 2,
+      options: [
+        { name: 'Avocado', priceDelta: '3.00', sortOrder: 1 },
+        { name: 'Aged cheddar', priceDelta: '2.00', sortOrder: 2 },
+      ],
+    },
+  ],
+  'Wagyu Beef Burger': [
+    {
+      name: 'Temperature',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Medium rare', sortOrder: 1 },
+        { name: 'Medium', sortOrder: 2 },
+        { name: 'Well done', sortOrder: 3 },
+      ],
+    },
+    {
+      name: 'Cheese',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 2,
+      options: [
+        { name: 'Aged cheddar', priceDelta: '2.00', sortOrder: 1 },
+        { name: 'Blue cheese', priceDelta: '3.00', sortOrder: 2 },
+        { name: 'No cheese', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Pan-Seared Salmon': [
+    {
+      name: 'Sauce',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Beurre blanc', sortOrder: 1 },
+        { name: 'Lemon herb vinaigrette', sortOrder: 2 },
+        { name: 'Extra beurre blanc', priceDelta: '2.00', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Sparkling Mineral Water': [
+    {
+      name: 'Style',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Sparkling', sortOrder: 1 },
+        { name: 'Still', sortOrder: 2 },
+      ],
+    },
+  ],
+  'Fresh-Pressed Lemonade': [
+    {
+      name: 'Sweetness',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'House recipe', sortOrder: 1 },
+        { name: 'Less sweet', sortOrder: 2 },
+        { name: 'Extra ginger', priceDelta: '1.00', sortOrder: 3 },
+      ],
+    },
+  ],
+  'House Red Wine': [
+    {
+      name: 'Pour',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Glass', sortOrder: 1 },
+        { name: 'Carafe', priceDelta: '18.00', sortOrder: 2 },
+      ],
+    },
+  ],
+  'House White Wine': [
+    {
+      name: 'Pour',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Glass', sortOrder: 1 },
+        { name: 'Carafe', priceDelta: '18.00', sortOrder: 2 },
+      ],
+    },
+  ],
+  'Local Craft Beer': [
+    {
+      name: 'Style',
+      required: true,
+      minSelect: 1,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'IPA', sortOrder: 1 },
+        { name: 'Pilsner', sortOrder: 2 },
+        { name: 'Seasonal ale', sortOrder: 3 },
+      ],
+    },
+  ],
+  'Espresso Martini': [
+    {
+      name: 'Coffee profile',
+      required: false,
+      minSelect: 0,
+      maxSelect: 1,
+      sortOrder: 1,
+      options: [
+        { name: 'Classic', sortOrder: 1 },
+        { name: 'Extra espresso', priceDelta: '2.00', sortOrder: 2 },
+        { name: 'Decaf espresso', sortOrder: 3 },
+      ],
+    },
+  ],
+};
+
 /**
  * Idempotent seed — if the menu table already contains items, this is a no-op.
  * To force a re-seed: `npx prisma migrate reset --force` (which also re-runs seed).
  */
 export async function seedMenu(prisma: PrismaClient): Promise<{ inserted: number }> {
   const existing = await prisma.menuItem.count();
-  if (existing > 0) return { inserted: 0 };
+  let inserted = 0;
 
-  const result = await prisma.menuItem.createMany({ data: MENU });
-  return { inserted: result.count };
+  if (existing === 0) {
+    const result = await prisma.menuItem.createMany({ data: MENU });
+    inserted = result.count;
+  }
+
+  await seedCustomizations(prisma);
+  return { inserted };
+}
+
+async function seedCustomizations(prisma: PrismaClient): Promise<void> {
+  for (const [itemName, groups] of Object.entries(CUSTOMIZATIONS)) {
+    const item = await prisma.menuItem.findFirst({
+      where: { name: itemName },
+      select: { id: true },
+    });
+    if (!item) continue;
+
+    for (const groupSeed of groups) {
+      const existingGroup = await prisma.customizationGroup.findFirst({
+        where: { menuItemId: item.id, name: groupSeed.name },
+        select: { id: true },
+      });
+      const group =
+        existingGroup ??
+        (await prisma.customizationGroup.create({
+          data: {
+            menuItemId: item.id,
+            name: groupSeed.name,
+            required: groupSeed.required,
+            minSelect: groupSeed.minSelect,
+            maxSelect: groupSeed.maxSelect,
+            sortOrder: groupSeed.sortOrder,
+          },
+          select: { id: true },
+        }));
+
+      for (const option of groupSeed.options) {
+        await prisma.customizationOption.upsert({
+          where: { id: `${group.id}:${option.name}` },
+          update: {},
+          create: {
+            id: `${group.id}:${option.name}`,
+            groupId: group.id,
+            name: option.name,
+            priceDelta: option.priceDelta ?? '0.00',
+            available: option.available ?? true,
+            sortOrder: option.sortOrder,
+          },
+        });
+      }
+    }
+  }
 }
 
 async function main(): Promise<void> {

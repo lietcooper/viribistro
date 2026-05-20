@@ -23,6 +23,7 @@ describe('POST /api/chat', () => {
   let salmonId: string;
   let redWineId: string;
   let whiteWineId: string;
+  let burgerCustomizations: Record<string, string[]>;
   let fake: FakeAnthropic;
 
   beforeAll(async () => {
@@ -45,6 +46,13 @@ describe('POST /api/chat', () => {
     salmonId = salmon.id;
     redWineId = red.id;
     whiteWineId = white.id;
+    const temperature = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: burger.id, name: 'Temperature' },
+      include: { options: true },
+    });
+    const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
+    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    burgerCustomizations = { [temperature.id]: [mediumRare.id] };
   });
 
   afterAll(async () => {
@@ -68,7 +76,13 @@ describe('POST /api/chat', () => {
   it('happy path: adds an item via the agent and returns reply + cartUpdate', async () => {
     fake.enqueue({
       stop_reason: 'tool_use',
-      content: [toolUseBlock('tu_1', 'add_to_cart', { itemId: burgerId, quantity: 1 })],
+      content: [
+        toolUseBlock('tu_1', 'add_to_cart', {
+          itemId: burgerId,
+          quantity: 1,
+          customizations: burgerCustomizations,
+        }),
+      ],
     });
     fake.enqueue({
       stop_reason: 'end_turn',

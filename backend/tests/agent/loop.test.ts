@@ -33,6 +33,7 @@ async function loadMenuSnapshot() {
 
 describe('runAgentLoop', () => {
   let burgerId: string;
+  let burgerCustomizations: Record<string, string[]>;
 
   beforeAll(async () => {
     await resetDb();
@@ -42,6 +43,13 @@ describe('runAgentLoop', () => {
     });
     if (!burger) throw new Error('seed missing burger');
     burgerId = burger.id;
+    const temperature = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: burger.id, name: 'Temperature' },
+      include: { options: true },
+    });
+    const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
+    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    burgerCustomizations = { [temperature.id]: [mediumRare.id] };
   });
 
   afterAll(async () => {
@@ -57,7 +65,13 @@ describe('runAgentLoop', () => {
     const fake = createFakeAnthropic();
     fake.enqueue({
       stop_reason: 'tool_use',
-      content: [toolUseBlock('tu_1', 'add_to_cart', { itemId: burgerId, quantity: 1 })],
+      content: [
+        toolUseBlock('tu_1', 'add_to_cart', {
+          itemId: burgerId,
+          quantity: 1,
+          customizations: burgerCustomizations,
+        }),
+      ],
     });
     fake.enqueue({
       stop_reason: 'end_turn',
@@ -90,6 +104,36 @@ describe('runAgentLoop', () => {
     expect(secondCallMessages[0]?.role).toBe('user');
     expect(secondCallMessages[1]?.role).toBe('assistant');
     expect(secondCallMessages[2]?.role).toBe('user');
+  });
+
+  it('direct add without required customizations lets the model recover with a clarification', async () => {
+    const fake = createFakeAnthropic();
+    fake.enqueue({
+      stop_reason: 'tool_use',
+      content: [toolUseBlock('tu_1', 'add_to_cart', { itemId: burgerId, quantity: 1 })],
+    });
+    fake.enqueue({
+      stop_reason: 'end_turn',
+      content: [textBlock('How would you like your burger cooked?')],
+    });
+
+    const menu = await loadMenuSnapshot();
+    const result = await runAgentLoop({
+      anthropic: fake,
+      sessionId: SESSION,
+      menu,
+      priorMessages: [],
+      userMessage: 'Add the burger',
+      model: 'test-model',
+    });
+
+    expect(result.reply).toBe('How would you like your burger cooked?');
+    expect(result.toolsUsed.map((t) => t.name)).toEqual(['add_to_cart']);
+    expect(result.cartUpdate).toBeNull();
+    const toolResultMessage = fake.calls[1]!.messages[2]!;
+    const toolResult = (toolResultMessage.content as Array<{ content: string }>)[0]!;
+    expect(JSON.parse(toolResult.content).error).toBe('MISSING_REQUIRED_CUSTOMIZATION');
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
   });
 
   it('clarify short-circuits the loop and returns the question as reply', async () => {
@@ -258,9 +302,9 @@ describe('runAgentLoop', () => {
     expect(systemArray[0]?.type).toBe('text');
     expect(systemArray[0]?.cache_control).toEqual({ type: 'ephemeral' });
     expect(systemArray[0]?.text).toContain('Wagyu Beef Burger');
-    // Static block MUST NOT contain the cart heading — otherwise mutations
+    // Static block MUST NOT contain the cart section heading — otherwise mutations
     // bust the prefix cache.
-    expect(systemArray[0]?.text).not.toContain('CURRENT CART');
+    expect(systemArray[0]?.text).not.toMatch(/\n=== CURRENT CART ===\n/);
 
     // Block 1 — volatile, uncached, holds the cart.
     expect(systemArray[1]?.type).toBe('text');
@@ -287,7 +331,7 @@ describe('runAgentLoop', () => {
       model: 'test-model',
     });
 
-    await cartService.addItem(SESSION, burgerId, 1);
+    await cartService.addItem(SESSION, burgerId, 1, burgerCustomizations);
 
     await runAgentLoop({
       anthropic: fake,
@@ -445,7 +489,13 @@ describe('runAgentLoop', () => {
     const fake = createFakeAnthropic();
     fake.enqueue({
       stop_reason: 'tool_use',
-      content: [toolUseBlock('tu_1', 'add_to_cart', { itemId: burgerId, quantity: 1 })],
+      content: [
+        toolUseBlock('tu_1', 'add_to_cart', {
+          itemId: burgerId,
+          quantity: 1,
+          customizations: burgerCustomizations,
+        }),
+      ],
     });
     fake.enqueue({
       stop_reason: 'end_turn',

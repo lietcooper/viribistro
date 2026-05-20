@@ -59,8 +59,37 @@ model MenuItem {
 
   orderItems  OrderItem[]
   cartItems   CartItem[]
+  customizationGroups CustomizationGroup[]
 
   @@index([category])
+}
+
+model CustomizationGroup {
+  id         String   @id @default(cuid())
+  menuItemId String
+  name       String
+  required   Boolean  @default(false)
+  minSelect  Int      @default(0)
+  maxSelect  Int      @default(1)
+  sortOrder  Int      @default(0)
+
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options    CustomizationOption[]
+
+  @@index([menuItemId])
+}
+
+model CustomizationOption {
+  id         String   @id @default(cuid())
+  groupId    String
+  name       String
+  priceDelta Decimal  @default(0) @db.Decimal(10, 2)
+  available  Boolean  @default(true)
+  sortOrder  Int      @default(0)
+
+  group      CustomizationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
 }
 
 model Cart {
@@ -82,13 +111,16 @@ model CartItem {
   menuItemId String
   quantity   Int
   unitPrice  Decimal  @db.Decimal(10, 2)
+  customizations Json   @default("[]")
+  customizationHash String @default("base")
 
   cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
 
-  @@unique([cartId, menuItemId])
+  @@unique([cartId, menuItemId, customizationHash])
   @@index([cartId])
   @@index([menuItemId])
+  @@index([customizationHash])
 }
 
 model Order {
@@ -115,6 +147,8 @@ model OrderItem {
   menuItemId String
   quantity   Int
   unitPrice  Decimal  @db.Decimal(10, 2)
+  customizations Json   @default("[]")
+  customizationHash String @default("base")
 
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])

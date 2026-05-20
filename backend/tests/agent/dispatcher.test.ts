@@ -13,6 +13,7 @@ const SESSION = 'dispatcher-test-sess';
 describe('dispatchTool', () => {
   let burgerId: string;
   let salmonId: string;
+  let burgerCustomizations: Record<string, string[]>;
 
   beforeAll(async () => {
     await resetDb();
@@ -26,6 +27,13 @@ describe('dispatchTool', () => {
     if (!burger || !salmon) throw new Error('seed missing fixture items');
     burgerId = burger.id;
     salmonId = salmon.id;
+    const temperature = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: burger.id, name: 'Temperature' },
+      include: { options: true },
+    });
+    const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
+    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    burgerCustomizations = { [temperature.id]: [mediumRare.id] };
   });
 
   afterAll(async () => {
@@ -39,7 +47,11 @@ describe('dispatchTool', () => {
 
   it('add_to_cart succeeds and returns a tool_result with cart payload', async () => {
     const res = await dispatchTool(
-      { id: 'tu_1', name: 'add_to_cart', input: { itemId: burgerId, quantity: 2 } },
+      {
+        id: 'tu_1',
+        name: 'add_to_cart',
+        input: { itemId: burgerId, quantity: 2, customizations: burgerCustomizations },
+      },
       { sessionId: SESSION },
     );
     expect(res.type).toBe('tool_result');
@@ -52,6 +64,19 @@ describe('dispatchTool', () => {
     };
     expect(parsed.cart.items[0]?.menuItemId).toBe(burgerId);
     expect(parsed.cart.items[0]?.quantity).toBe(2);
+  });
+
+  it('add_to_cart returns a recoverable error when required customizations are missing', async () => {
+    const res = await dispatchTool(
+      { id: 'tu_missing', name: 'add_to_cart', input: { itemId: burgerId, quantity: 1 } },
+      { sessionId: SESSION },
+    );
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    expect(res.is_error).toBe(true);
+    const parsed = JSON.parse(res.content) as { error: string };
+    expect(parsed.error).toBe('MISSING_REQUIRED_CUSTOMIZATION');
+    expect((await cartService.getCart(SESSION)).items).toEqual([]);
   });
 
   it('clarify returns a sentinel object (not a tool_result) for the loop to short-circuit', async () => {
@@ -107,7 +132,7 @@ describe('dispatchTool', () => {
   });
 
   it('get_cart returns the current cart without mutating', async () => {
-    await cartService.addItem(SESSION, burgerId, 1);
+    await cartService.addItem(SESSION, burgerId, 1, burgerCustomizations);
     const res = await dispatchTool(
       { id: 'tu_6', name: 'get_cart', input: {} },
       { sessionId: SESSION },
@@ -138,6 +163,27 @@ describe('dispatchTool', () => {
     }
   });
 
+  it('get_item_customizations returns groups and options for one item', async () => {
+    const res = await dispatchTool(
+      { id: 'tu_custom', name: 'get_item_customizations', input: { itemId: burgerId } },
+      { sessionId: SESSION },
+    );
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    expect(res.mutated).toBe(false);
+    const parsed = JSON.parse(res.content) as {
+      customizations: Array<{ name: string; options: Array<{ name: string }> }>;
+    };
+    expect(parsed.customizations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Temperature',
+          options: expect.arrayContaining([expect.objectContaining({ name: 'Medium rare' })]),
+        }),
+      ]),
+    );
+  });
+
   it('modify_item with newQuantity=0 removes the item from the cart', async () => {
     await cartService.addItem(SESSION, salmonId, 3);
     const res = await dispatchTool(
@@ -155,7 +201,7 @@ describe('dispatchTool', () => {
   });
 
   it('remove_from_cart removes an item by id', async () => {
-    await cartService.addItem(SESSION, burgerId, 2);
+    await cartService.addItem(SESSION, burgerId, 2, burgerCustomizations);
     const res = await dispatchTool(
       { id: 'tu_9', name: 'remove_from_cart', input: { itemId: burgerId } },
       { sessionId: SESSION },

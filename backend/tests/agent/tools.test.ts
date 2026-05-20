@@ -7,12 +7,13 @@ const expectedToolNames = [
   'modify_item',
   'get_cart',
   'get_menu',
+  'get_item_customizations',
   'clarify',
 ] as const;
 
 describe('AI agent tool schemas', () => {
-  it('exposes all six tools in the Anthropic tools array', () => {
-    expect(toolSchemas).toHaveLength(6);
+  it('exposes all seven tools in the Anthropic tools array', () => {
+    expect(toolSchemas).toHaveLength(7);
     const names = toolSchemas.map((t) => t.name).sort();
     expect(names).toEqual([...expectedToolNames].sort());
   });
@@ -43,9 +44,24 @@ describe('AI agent tool schemas', () => {
     const zod = toolInputZod.add_to_cart;
     expect(zod.safeParse({ itemId: 'abc' }).success).toBe(true);
     expect(zod.safeParse({ itemId: 'abc', quantity: 3 }).success).toBe(true);
+    expect(
+      zod.safeParse({
+        itemId: 'abc',
+        quantity: 3,
+        customizations: { groupA: ['optionA'] },
+      }).success,
+    ).toBe(true);
     expect(zod.safeParse({ itemId: 'abc', quantity: 0 }).success).toBe(false);
     expect(zod.safeParse({ itemId: 'abc', quantity: 1.5 }).success).toBe(false);
     expect(zod.safeParse({ quantity: 1 }).success).toBe(false);
+  });
+
+  it('get_item_customizations requires itemId', () => {
+    const schema = toolSchemas.find((t) => t.name === 'get_item_customizations')!;
+    expect((schema.input_schema as { required?: string[] }).required).toEqual(['itemId']);
+    const zod = toolInputZod.get_item_customizations;
+    expect(zod.safeParse({ itemId: 'abc' }).success).toBe(true);
+    expect(zod.safeParse({}).success).toBe(false);
   });
 
   it('remove_from_cart requires itemId', () => {

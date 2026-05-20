@@ -19,6 +19,7 @@ import { getAnthropicClient } from '../services/agent/anthropic.js';
 import { appendTurn, clearHistory, loadHistory } from '../services/agent/persistence.js';
 import type { MenuSnapshotItem } from '../services/agent/systemPrompt.js';
 import { optionalUserId } from '../lib/optionalUserId.js';
+import { normalizePrice } from '../services/cart.js';
 
 async function loadMenuSnapshot(): Promise<MenuSnapshotItem[]> {
   const items = await prisma.menuItem.findMany({
@@ -30,10 +31,39 @@ async function loadMenuSnapshot(): Promise<MenuSnapshotItem[]> {
       price: true,
       category: true,
       tags: true,
+      customizationGroups: {
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          required: true,
+          minSelect: true,
+          maxSelect: true,
+          options: {
+            orderBy: { sortOrder: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              priceDelta: true,
+              available: true,
+            },
+          },
+        },
+      },
     },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
   });
-  return items.map((i) => ({ ...i, price: i.price.toString() }));
+  return items.map((i) => ({
+    ...i,
+    price: i.price.toString(),
+    customizationGroups: i.customizationGroups.map((group) => ({
+      ...group,
+      options: group.options.map((option) => ({
+        ...option,
+        priceDelta: normalizePrice(option.priceDelta),
+      })),
+    })),
+  }));
 }
 
 export const chatRouter: Router = Router();

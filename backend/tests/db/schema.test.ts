@@ -52,7 +52,15 @@ describe('Schema models', () => {
         status: 'confirmed',
         totalPrice: '25.00',
         items: {
-          create: [{ menuItemId: menuItem.id, quantity: 2, unitPrice: '12.50' }],
+          create: [
+            {
+              menuItemId: menuItem.id,
+              quantity: 2,
+              unitPrice: '12.50',
+              customizationHash: 'base',
+              customizations: [],
+            },
+          ],
         },
       },
       include: { items: true },
@@ -62,6 +70,46 @@ describe('Schema models', () => {
     expect(order.items[0]!.quantity).toBe(2);
     expect(order.status).toBe('confirmed');
     expect(order.totalPrice.toString()).toBe('25');
+    expect(order.items[0]!.customizationHash).toBe('base');
+    expect(order.items[0]!.customizations).toEqual([]);
+  });
+
+  it('round-trips MenuItem customization groups and options', async () => {
+    const menuItem = await prisma.menuItem.create({
+      data: {
+        name: 'Custom Test Item',
+        description: 'For customization testing',
+        price: '10.00',
+        category: 'mains',
+        tags: ['signature'],
+        imageUrl: 'https://example.com/custom.jpg',
+        customizationGroups: {
+          create: [
+            {
+              name: 'Sauce',
+              required: true,
+              minSelect: 1,
+              maxSelect: 1,
+              sortOrder: 1,
+              options: {
+                create: [
+                  {
+                    name: 'Peppercorn',
+                    priceDelta: '2.00',
+                    sortOrder: 1,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      include: { customizationGroups: { include: { options: true } } },
+    });
+
+    expect(menuItem.customizationGroups).toHaveLength(1);
+    expect(menuItem.customizationGroups[0]!.required).toBe(true);
+    expect(menuItem.customizationGroups[0]!.options[0]!.priceDelta.toString()).toBe('2');
   });
 
   it('round-trips a Conversation with nested Messages (Json content)', async () => {

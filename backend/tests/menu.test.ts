@@ -46,8 +46,34 @@ describe('Public menu routes', () => {
       expect(item).toHaveProperty('category');
       expect(item).toHaveProperty('tags');
       expect(item).toHaveProperty('imageUrl');
+      expect(item).toHaveProperty('customizationGroups');
+      expect(Array.isArray(item.customizationGroups)).toBe(true);
       // price serialized as string for Decimal safety.
       expect(typeof item.price).toBe('string');
+    });
+
+    it('includes customization groups and options for customizable items', async () => {
+      const app = await buildTestApp();
+      const res = await request(app).get('/api/menu?category=mains');
+      expect(res.status).toBe(200);
+      const burger = res.body.items.find((i: { name: string }) => i.name === 'Wagyu Beef Burger');
+      expect(burger.customizationGroups).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'Temperature',
+            required: true,
+            minSelect: 1,
+            maxSelect: 1,
+            options: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Medium rare',
+                priceDelta: '0.00',
+                available: true,
+              }),
+            ]),
+          }),
+        ]),
+      );
     });
 
     it('hides items where available=false', async () => {
@@ -92,6 +118,7 @@ describe('Public menu routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.item.id).toBe(any.id);
       expect(res.body.item.name).toBe(any.name);
+      expect(Array.isArray(res.body.item.customizationGroups)).toBe(true);
     });
 
     it('returns 404 when not found', async () => {

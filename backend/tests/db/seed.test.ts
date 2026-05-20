@@ -56,4 +56,31 @@ describe('Menu seed', () => {
     const after = await prisma.menuItem.count();
     expect(after).toBe(before);
   });
+
+  it('seeds customization data for selected mains and drinks', async () => {
+    const customizableNames = [
+      'Spicy Chicken Sandwich',
+      'Wagyu Beef Burger',
+      'Pan-Seared Salmon',
+      'Sparkling Mineral Water',
+      'Fresh-Pressed Lemonade',
+      'House Red Wine',
+      'House White Wine',
+      'Local Craft Beer',
+      'Espresso Martini',
+    ];
+
+    for (const name of customizableNames) {
+      const item = await prisma.menuItem.findFirst({
+        where: { name },
+        include: { customizationGroups: { include: { options: true } } },
+      });
+      expect(item, `missing ${name}`).toBeTruthy();
+      expect(item!.customizationGroups.length, `${name} groups`).toBeGreaterThan(0);
+      expect(
+        item!.customizationGroups.every((g) => g.options.length > 0),
+        `${name} options`,
+      ).toBe(true);
+    }
+  });
 });

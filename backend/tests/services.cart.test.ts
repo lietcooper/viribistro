@@ -165,6 +165,48 @@ describe('cart service', () => {
     expect((await cartService.getCart('session-a')).items).toEqual([]);
   });
 
+  it('removeItem rejects ambiguous menuItemId when customized lines share the same menu item', async () => {
+    await cartService.addItem('session-a', burger.id, 1, burgerBaseCustomizations());
+    await cartService.addItem('session-a', burger.id, 2, {
+      [burgerGroups.temperature.id]: [burgerGroups.temperature.mediumRare],
+      [burgerGroups.cheese.id]: [burgerGroups.cheese.blue],
+    });
+
+    await expect(cartService.removeItem('session-a', burger.id)).rejects.toMatchObject({
+      status: 409,
+      code: 'AMBIGUOUS_CART_ITEM',
+      message: expect.stringContaining('Wagyu Beef Burger'),
+    });
+
+    const cart = await cartService.getCart('session-a');
+    expect(cart.items).toHaveLength(2);
+    expect(cart.items.map((item) => item.quantity).sort()).toEqual([1, 2]);
+  });
+
+  it('removeItem allows menuItemId fallback when exactly one cart line matches', async () => {
+    await cartService.addItem('session-a', burger.id, 2, burgerBaseCustomizations());
+    await cartService.removeItem('session-a', burger.id);
+    expect((await cartService.getCart('session-a')).items).toEqual([]);
+  });
+
+  it('removeItem removes exactly one customized line by cart item id', async () => {
+    await cartService.addItem('session-a', burger.id, 1, burgerBaseCustomizations());
+    await cartService.addItem('session-a', burger.id, 2, {
+      [burgerGroups.temperature.id]: [burgerGroups.temperature.mediumRare],
+      [burgerGroups.cheese.id]: [burgerGroups.cheese.blue],
+    });
+    const before = await cartService.getCart('session-a');
+    const lineToRemove = before.items.find((item) => item.customizations.length === 2)!;
+
+    await cartService.removeItem('session-a', lineToRemove.id);
+
+    const cart = await cartService.getCart('session-a');
+    expect(cart.items).toHaveLength(1);
+    expect(cart.items[0]!.id).not.toBe(lineToRemove.id);
+    expect(cart.items[0]!.menuItemId).toBe(burger.id);
+    expect(cart.items[0]!.customizations).toHaveLength(1);
+  });
+
   it('addItem does not retroactively mutate a snapshot returned by getCart', async () => {
     // The previous implementation mutated the Map entry in place, so any
     // reference handed out by an earlier getCart() call would silently

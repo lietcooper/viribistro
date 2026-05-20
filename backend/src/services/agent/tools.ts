@@ -48,31 +48,50 @@ export const toolSchemas: Anthropic.Tool[] = [
   },
   {
     name: 'remove_from_cart',
-    description: 'Remove a single menu item from the cart entirely (regardless of quantity).',
+    description:
+      'Remove an entire cart line from the cart. Prefer cartItemId from CURRENT CART. ' +
+      'Use itemId only when exactly one cart line matches that menu item. For "remove one" ' +
+      'or quantity reductions, use modify_item with the decremented quantity instead.',
     input_schema: {
       type: 'object',
       properties: {
+        cartItemId: {
+          type: 'string',
+          description:
+            'The exact cart line ID from CURRENT CART. Preferred for customized items.',
+        },
         itemId: {
           type: 'string',
-          description: 'The exact menu item ID to remove from the cart.',
+          description:
+            'Fallback exact menu item ID. Safe only when one cart line has this menuItemId.',
         },
       },
-      required: ['itemId'],
+      required: [],
     },
   },
   {
     name: 'modify_item',
     description:
-      'Set the cart quantity for a menu item to an exact new value. ' +
-      "A newQuantity of 0 removes the item. If the item isn't in the cart yet and " +
-      'newQuantity is positive, it is added.',
+      'Set one cart line quantity to an exact new value. Prefer cartItemId from CURRENT CART. ' +
+      'Use this for quantity reductions like "remove one" by sending the decremented quantity. ' +
+      "A newQuantity of 0 removes the cart line. If itemId is used and the item isn't in the cart yet, " +
+      'a positive newQuantity adds the uncustomized item.',
     input_schema: {
       type: 'object',
       properties: {
-        itemId: { type: 'string' },
+        cartItemId: {
+          type: 'string',
+          description:
+            'The exact cart line ID from CURRENT CART. Preferred for customized items.',
+        },
+        itemId: {
+          type: 'string',
+          description:
+            'Fallback exact menu item ID. Safe only when one cart line has this menuItemId.',
+        },
         newQuantity: { type: 'integer', minimum: 0 },
       },
-      required: ['itemId', 'newQuantity'],
+      required: ['newQuantity'],
     },
   },
   {
@@ -154,13 +173,25 @@ export const toolInputZod = {
     quantity: z.number().int().positive().optional(),
     customizations: SelectedCustomizations.optional(),
   }),
-  remove_from_cart: z.object({
-    itemId: z.string().min(1),
-  }),
-  modify_item: z.object({
-    itemId: z.string().min(1),
-    newQuantity: z.number().int().min(0),
-  }),
+  remove_from_cart: z
+    .object({
+      cartItemId: z.string().min(1).optional(),
+      itemId: z.string().min(1).optional(),
+    })
+    .refine((data) => data.cartItemId || data.itemId, {
+      message: 'cartItemId or itemId is required',
+      path: ['cartItemId'],
+    }),
+  modify_item: z
+    .object({
+      cartItemId: z.string().min(1).optional(),
+      itemId: z.string().min(1).optional(),
+      newQuantity: z.number().int().min(0),
+    })
+    .refine((data) => data.cartItemId || data.itemId, {
+      message: 'cartItemId or itemId is required',
+      path: ['cartItemId'],
+    }),
   get_cart: z.object({}).passthrough(),
   get_menu: z.object({
     category: Category.optional(),
@@ -259,13 +290,17 @@ export async function dispatchTool(
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'remove_from_cart': {
-        const { itemId } = input as z.infer<(typeof toolInputZod)['remove_from_cart']>;
-        const next = await cart.removeItem(ctx, itemId);
+        const { cartItemId, itemId } = input as z.infer<
+          (typeof toolInputZod)['remove_from_cart']
+        >;
+        const next = await cart.removeItem(ctx, cartItemId ?? itemId!);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'modify_item': {
-        const { itemId, newQuantity } = input as z.infer<(typeof toolInputZod)['modify_item']>;
-        const next = await cart.modifyItem(ctx, itemId, newQuantity);
+        const { cartItemId, itemId, newQuantity } = input as z.infer<
+          (typeof toolInputZod)['modify_item']
+        >;
+        const next = await cart.modifyItem(ctx, cartItemId ?? itemId!, newQuantity);
         return resultOk(block.id, name, true, { cart: next });
       }
       case 'get_cart': {

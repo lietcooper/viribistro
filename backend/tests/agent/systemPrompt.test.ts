@@ -77,6 +77,15 @@ describe('buildSystemPrompt', () => {
     expect(cartSectionIdx).toBeGreaterThan(directiveIdx);
   });
 
+  it('tells the model to use cartItemId for cart-line remove and modify actions', () => {
+    const out = buildSystemPrompt(FAKE_MENU, { items: [], total: '0' });
+    expect(out).toContain('cartItemId');
+    expect(out).toMatch(/remove_from_cart/);
+    expect(out).toMatch(/modify_item/);
+    expect(out).toMatch(/remove one/i);
+    expect(out).toMatch(/never remove multiple customized lines/i);
+  });
+
   it('lists every menu item with its id, name, and price', () => {
     const out = buildSystemPrompt(FAKE_MENU, { items: [], total: '0' });
     for (const item of FAKE_MENU) {
@@ -136,7 +145,8 @@ describe('buildSystemPrompt', () => {
     };
     const out = buildSystemPrompt(FAKE_MENU, cart);
     expect(out).toContain('Wagyu Beef Burger');
-    expect(out).toContain('lineId: line-burger');
+    expect(out).toContain('cartItemId: line-burger');
+    expect(out).toContain('menuItemId: m-burger');
     expect(out).toContain('Temperature: Medium rare');
     expect(out).toContain('× 2');
     expect(out).toContain('Crème Brûlée');
@@ -168,12 +178,15 @@ describe('buildSystemPrompt', () => {
       2. If a request matches more than one menu item, ALWAYS call \`clarify\` with a question that NAMES the candidates rather than picking one.
       3. If an item has required customization groups and the user did not choose them, ALWAYS call \`clarify\` and name the required choices. Do not guess defaults.
       4. When calling \`add_to_cart\` for a customized item, pass \`customizations\` as { groupId: [optionId] } using exact IDs from the menu or \`get_item_customizations\`.
-      5. If the user goes off-topic (table bookings, delivery, hours, dietary advice that requires a human, etc.), politely redirect: \"I don't have a table booking system, but I can help you order food. Want me to recommend something?\"
-      6. Reply in plain text with no markdown, no bullet lists, no headers. Two short sentences is plenty.
-      7. After a cart mutation, briefly confirm what changed — don't recite the whole cart unless asked.
-      8. Prices are in USD.
-      9. The \`=== CURRENT CART ===\` block below is the authoritative cart state for this turn — it is recomputed from the database on every request. If earlier tool_results in the conversation history disagree (e.g. an old \`add_to_cart\` confirmation showing items that are no longer there), trust the CURRENT CART block instead; those earlier results are stale. When in doubt, call \`get_cart\` rather than relying on memory of past turns.
-      10. After your reply text, ALWAYS append a single line with 2–4 short follow-up suggestions in this exact format:
+      5. For cart removals and quantity changes, use cartItemId from CURRENT CART whenever possible. Use menuItemId only when exactly one cart line matches.
+      6. If multiple cart lines match a requested item name, ALWAYS call \`clarify\`; mention each line's customizations so the user can choose. Never remove multiple customized lines unless the user clearly asks to remove all matching lines.
+      7. \`remove_from_cart\` removes an entire cart line. For requests like \"remove one\" or \"take one off\" when quantity is greater than 1, call \`modify_item\` with the decremented quantity instead.
+      8. If the user goes off-topic (table bookings, delivery, hours, dietary advice that requires a human, etc.), politely redirect: \"I don't have a table booking system, but I can help you order food. Want me to recommend something?\"
+      9. Reply in plain text with no markdown, no bullet lists, no headers. Two short sentences is plenty.
+      10. After a cart mutation, briefly confirm what changed — don't recite the whole cart unless asked.
+      11. Prices are in USD.
+      12. The \`=== CURRENT CART ===\` block below is the authoritative cart state for this turn — it is recomputed from the database on every request. If earlier tool_results in the conversation history disagree (e.g. an old \`add_to_cart\` confirmation showing items that are no longer there), trust the CURRENT CART block instead; those earlier results are stale. When in doubt, call \`get_cart\` rather than relying on memory of past turns.
+      13. After your reply text, ALWAYS append a single line with 2–4 short follow-up suggestions in this exact format:
          <SUGGEST>[\"Suggestion one\",\"Suggestion two\",\"Suggestion three\"]</SUGGEST>
          The suggestions must be phrased as messages the user could send next (≤6 words each, no trailing punctuation). Tailor them to the current cart and last reply — e.g. after recommending a dish, offer \"Add it to my cart\"; if the cart has items, include something like \"What's in my cart?\" or \"Place my order\". Never include the tag if you are calling a tool — only on text replies."
     `);

@@ -10,6 +10,7 @@ import { signAccessToken } from '../src/services/auth.js';
 describe('Cart HTTP routes', () => {
   let burgerId: string;
   let burgerCustomizations: Record<string, string[]>;
+  let burgerBlueCheeseCustomizations: Record<string, string[]>;
 
   beforeAll(async () => {
     await resetDb();
@@ -21,9 +22,20 @@ describe('Cart HTTP routes', () => {
       where: { menuItemId: b.id, name: 'Temperature' },
       include: { options: true },
     });
+    const cheese = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: b.id, name: 'Cheese' },
+      include: { options: true },
+    });
     const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
-    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    const blue = cheese?.options.find((o) => o.name === 'Blue cheese');
+    if (!temperature || !mediumRare || !cheese || !blue) {
+      throw new Error('seed missing burger customizations');
+    }
     burgerCustomizations = { [temperature.id]: [mediumRare.id] };
+    burgerBlueCheeseCustomizations = {
+      [temperature.id]: [mediumRare.id],
+      [cheese.id]: [blue.id],
+    };
   });
 
   afterAll(async () => {
@@ -142,6 +154,54 @@ describe('Cart HTTP routes', () => {
       .query({ sessionId: 'sess-1' });
     expect(res.status).toBe(200);
     expect(res.body.cart.items).toEqual([]);
+  });
+
+  it('DELETE /api/cart/:menuItemId returns 409 for ambiguous customized lines and preserves cart', async () => {
+    const app = await buildTestApp();
+    await request(app)
+      .post('/api/cart')
+      .send({
+        sessionId: 'sess-1',
+        menuItemId: burgerId,
+        quantity: 1,
+        customizations: burgerCustomizations,
+      })
+      .expect(200);
+    await request(app)
+      .post('/api/cart')
+      .send({
+        sessionId: 'sess-1',
+        menuItemId: burgerId,
+        quantity: 2,
+        customizations: burgerBlueCheeseCustomizations,
+      })
+      .expect(200);
+
+    const res = await request(app).delete(`/api/cart/${burgerId}`).query({ sessionId: 'sess-1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('AMBIGUOUS_CART_ITEM');
+    expect(res.body.error.message).toContain('Wagyu Beef Burger');
+    const cart = await cartService.getCart('sess-1');
+    expect(cart.items).toHaveLength(2);
+    expect(cart.items.map((item) => item.quantity).sort()).toEqual([1, 2]);
+  });
+
+  it('DELETE /api/cart/:cartItemId removes one specific customized line', async () => {
+    const app = await buildTestApp();
+    await cartService.addItem('sess-1', burgerId, 1, burgerCustomizations);
+    await cartService.addItem('sess-1', burgerId, 2, burgerBlueCheeseCustomizations);
+    const before = await cartService.getCart('sess-1');
+    const lineToRemove = before.items.find((item) => item.customizations.length === 2)!;
+
+    const res = await request(app)
+      .delete(`/api/cart/${lineToRemove.id}`)
+      .query({ sessionId: 'sess-1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.cart.items).toHaveLength(1);
+    expect(res.body.cart.items[0].id).not.toBe(lineToRemove.id);
+    expect(res.body.cart.items[0].menuItemId).toBe(burgerId);
   });
 
   it('POST /api/cart/reset empties the cart', async () => {

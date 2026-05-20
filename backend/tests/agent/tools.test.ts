@@ -64,24 +64,27 @@ describe('AI agent tool schemas', () => {
     expect(zod.safeParse({}).success).toBe(false);
   });
 
-  it('remove_from_cart requires itemId', () => {
+  it('remove_from_cart accepts cartItemId preferred and itemId fallback', () => {
     const schema = toolSchemas.find((t) => t.name === 'remove_from_cart')!;
-    expect((schema.input_schema as { required?: string[] }).required).toEqual(['itemId']);
+    expect((schema.input_schema as { required?: string[] }).required).toEqual([]);
+    expect(schema.description).toMatch(/entire cart line/i);
     const zod = toolInputZod.remove_from_cart;
     expect(zod.safeParse({ itemId: 'abc' }).success).toBe(true);
+    expect(zod.safeParse({ cartItemId: 'line-abc' }).success).toBe(true);
+    expect(zod.safeParse({ itemId: 'abc', cartItemId: 'line-abc' }).success).toBe(true);
     expect(zod.safeParse({}).success).toBe(false);
   });
 
-  it('modify_item requires itemId and newQuantity (non-negative integer)', () => {
+  it('modify_item accepts cartItemId preferred and itemId fallback with newQuantity', () => {
     const schema = toolSchemas.find((t) => t.name === 'modify_item')!;
-    expect((schema.input_schema as { required?: string[] }).required).toEqual([
-      'itemId',
-      'newQuantity',
-    ]);
+    expect((schema.input_schema as { required?: string[] }).required).toEqual(['newQuantity']);
+    expect(schema.description).toMatch(/remove one/i);
     const zod = toolInputZod.modify_item;
     expect(zod.safeParse({ itemId: 'a', newQuantity: 0 }).success).toBe(true);
+    expect(zod.safeParse({ cartItemId: 'line-a', newQuantity: 0 }).success).toBe(true);
     expect(zod.safeParse({ itemId: 'a', newQuantity: 4 }).success).toBe(true);
     expect(zod.safeParse({ itemId: 'a', newQuantity: -1 }).success).toBe(false);
+    expect(zod.safeParse({ newQuantity: 1 }).success).toBe(false);
   });
 
   it('get_cart accepts no arguments', () => {

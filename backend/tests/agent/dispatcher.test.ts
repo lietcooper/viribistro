@@ -14,6 +14,7 @@ describe('dispatchTool', () => {
   let burgerId: string;
   let salmonId: string;
   let burgerCustomizations: Record<string, string[]>;
+  let burgerBlueCheeseCustomizations: Record<string, string[]>;
 
   beforeAll(async () => {
     await resetDb();
@@ -31,9 +32,20 @@ describe('dispatchTool', () => {
       where: { menuItemId: burger.id, name: 'Temperature' },
       include: { options: true },
     });
+    const cheese = await prisma.customizationGroup.findFirst({
+      where: { menuItemId: burger.id, name: 'Cheese' },
+      include: { options: true },
+    });
     const mediumRare = temperature?.options.find((o) => o.name === 'Medium rare');
-    if (!temperature || !mediumRare) throw new Error('seed missing burger customizations');
+    const blue = cheese?.options.find((o) => o.name === 'Blue cheese');
+    if (!temperature || !mediumRare || !cheese || !blue) {
+      throw new Error('seed missing burger customizations');
+    }
     burgerCustomizations = { [temperature.id]: [mediumRare.id] };
+    burgerBlueCheeseCustomizations = {
+      [temperature.id]: [mediumRare.id],
+      [cheese.id]: [blue.id],
+    };
   });
 
   afterAll(async () => {
@@ -210,5 +222,74 @@ describe('dispatchTool', () => {
     if (res.type !== 'tool_result') throw new Error('unreachable');
     expect(res.mutated).toBe(true);
     expect((await cartService.getCart(SESSION)).items).toEqual([]);
+  });
+
+  it('remove_from_cart prefers cartItemId and removes one cart line', async () => {
+    await cartService.addItem(SESSION, burgerId, 1, burgerCustomizations);
+    await cartService.addItem(SESSION, burgerId, 2, burgerBlueCheeseCustomizations);
+    const before = await cartService.getCart(SESSION);
+    const lineToRemove = before.items.find((item) => item.customizations.length === 2)!;
+
+    const res = await dispatchTool(
+      {
+        id: 'tu_cart_line',
+        name: 'remove_from_cart',
+        input: { itemId: burgerId, cartItemId: lineToRemove.id },
+      },
+      { sessionId: SESSION },
+    );
+
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    expect(res.mutated).toBe(true);
+    const cart = await cartService.getCart(SESSION);
+    expect(cart.items).toHaveLength(1);
+    expect(cart.items[0]!.id).not.toBe(lineToRemove.id);
+    expect(cart.items[0]!.menuItemId).toBe(burgerId);
+  });
+
+  it('remove_from_cart returns recoverable ambiguity error for shared menuItemId', async () => {
+    await cartService.addItem(SESSION, burgerId, 1, burgerCustomizations);
+    await cartService.addItem(SESSION, burgerId, 2, burgerBlueCheeseCustomizations);
+
+    const res = await dispatchTool(
+      {
+        id: 'tu_ambiguous_remove',
+        name: 'remove_from_cart',
+        input: { itemId: burgerId },
+      },
+      { sessionId: SESSION },
+    );
+
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    expect(res.is_error).toBe(true);
+    expect(res.mutated).toBe(false);
+    const parsed = JSON.parse(res.content) as { error: string; message: string };
+    expect(parsed.error).toBe('AMBIGUOUS_CART_ITEM');
+    expect(parsed.message).toContain('Wagyu Beef Burger');
+    expect((await cartService.getCart(SESSION)).items).toHaveLength(2);
+  });
+
+  it('modify_item prefers cartItemId over itemId', async () => {
+    await cartService.addItem(SESSION, burgerId, 1, burgerCustomizations);
+    await cartService.addItem(SESSION, burgerId, 2, burgerBlueCheeseCustomizations);
+    const before = await cartService.getCart(SESSION);
+    const lineToModify = before.items.find((item) => item.customizations.length === 2)!;
+
+    const res = await dispatchTool(
+      {
+        id: 'tu_cart_line_modify',
+        name: 'modify_item',
+        input: { itemId: burgerId, cartItemId: lineToModify.id, newQuantity: 5 },
+      },
+      { sessionId: SESSION },
+    );
+
+    expect(res.type).toBe('tool_result');
+    if (res.type !== 'tool_result') throw new Error('unreachable');
+    const cart = await cartService.getCart(SESSION);
+    expect(cart.items.find((item) => item.id === lineToModify.id)?.quantity).toBe(5);
+    expect(cart.items.find((item) => item.id !== lineToModify.id)?.quantity).toBe(1);
   });
 });

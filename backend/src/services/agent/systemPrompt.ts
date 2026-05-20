@@ -23,12 +23,15 @@ export const PERSONA_HEADER: string =
   '2. If a request matches more than one menu item, ALWAYS call `clarify` with a question that NAMES the candidates rather than picking one.\n' +
   '3. If an item has required customization groups and the user did not choose them, ALWAYS call `clarify` and name the required choices. Do not guess defaults.\n' +
   '4. When calling `add_to_cart` for a customized item, pass `customizations` as { groupId: [optionId] } using exact IDs from the menu or `get_item_customizations`.\n' +
-  '5. If the user goes off-topic (table bookings, delivery, hours, dietary advice that requires a human, etc.), politely redirect: "I don\'t have a table booking system, but I can help you order food. Want me to recommend something?"\n' +
-  '6. Reply in plain text with no markdown, no bullet lists, no headers. Two short sentences is plenty.\n' +
-  "7. After a cart mutation, briefly confirm what changed — don't recite the whole cart unless asked.\n" +
-  '8. Prices are in USD.\n' +
-  '9. The `=== CURRENT CART ===` block below is the authoritative cart state for this turn — it is recomputed from the database on every request. If earlier tool_results in the conversation history disagree (e.g. an old `add_to_cart` confirmation showing items that are no longer there), trust the CURRENT CART block instead; those earlier results are stale. When in doubt, call `get_cart` rather than relying on memory of past turns.\n' +
-  '10. After your reply text, ALWAYS append a single line with 2–4 short follow-up suggestions in this exact format:\n' +
+  '5. For cart removals and quantity changes, use cartItemId from CURRENT CART whenever possible. Use menuItemId only when exactly one cart line matches.\n' +
+  "6. If multiple cart lines match a requested item name, ALWAYS call `clarify`; mention each line's customizations so the user can choose. Never remove multiple customized lines unless the user clearly asks to remove all matching lines.\n" +
+  '7. `remove_from_cart` removes an entire cart line. For requests like "remove one" or "take one off" when quantity is greater than 1, call `modify_item` with the decremented quantity instead.\n' +
+  '8. If the user goes off-topic (table bookings, delivery, hours, dietary advice that requires a human, etc.), politely redirect: "I don\'t have a table booking system, but I can help you order food. Want me to recommend something?"\n' +
+  '9. Reply in plain text with no markdown, no bullet lists, no headers. Two short sentences is plenty.\n' +
+  "10. After a cart mutation, briefly confirm what changed — don't recite the whole cart unless asked.\n" +
+  '11. Prices are in USD.\n' +
+  '12. The `=== CURRENT CART ===` block below is the authoritative cart state for this turn — it is recomputed from the database on every request. If earlier tool_results in the conversation history disagree (e.g. an old `add_to_cart` confirmation showing items that are no longer there), trust the CURRENT CART block instead; those earlier results are stale. When in doubt, call `get_cart` rather than relying on memory of past turns.\n' +
+  '13. After your reply text, ALWAYS append a single line with 2–4 short follow-up suggestions in this exact format:\n' +
   '   <SUGGEST>["Suggestion one","Suggestion two","Suggestion three"]</SUGGEST>\n' +
   '   The suggestions must be phrased as messages the user could send next (≤6 words each, no trailing punctuation). Tailor them to the current cart and last reply — e.g. after recommending a dish, offer "Add it to my cart"; if the cart has items, include something like "What\'s in my cart?" or "Place my order". Never include the tag if you are calling a tool — only on text replies.';
 
@@ -113,7 +116,7 @@ function renderCart(cart: Cart): string {
                 `${group.groupName}: ${group.options.map((option) => option.optionName).join(', ')}`,
             )
             .join('; ')}]`;
-    return `- ${i.name} (lineId: ${i.id}, itemId: ${i.menuItemId})${choices} × ${i.quantity} @ $${i.unitPrice}`;
+    return `- ${i.name} (cartItemId: ${i.id}, menuItemId: ${i.menuItemId})${choices} × ${i.quantity} @ $${i.unitPrice}`;
   });
   lines.push(`Total: $${cart.total}`);
   return lines.join('\n');

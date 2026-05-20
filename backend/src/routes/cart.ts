@@ -51,17 +51,17 @@ cartRouter.patch('/', validate({ body: ModifyCartBodySchema }), async (req, res)
 });
 
 cartRouter.delete(
-  '/:menuItemId',
+  '/:itemId',
   validate({ params: RemoveCartParamsSchema, query: RemoveCartQuerySchema }),
   async (req, res) => {
-    const { menuItemId } = req.params as { menuItemId: string };
+    const { itemId } = req.params as { itemId: string };
     const { sessionId } = req.query as { sessionId: string };
-    const next = await cart.removeItem(owner(req, sessionId), menuItemId);
+    const next = await cart.removeItem(owner(req, sessionId), itemId);
     res.json({ cart: next });
   },
 );
 
-// NOTE on route order: `DELETE /:menuItemId` is registered above and
+// NOTE on route order: `DELETE /:itemId` is registered above and
 // would match `/reset` if a client mistakenly sent DELETE to this path
 // (no-op since no item has id "reset"). The method (POST vs DELETE)
 // keeps them distinct — keep this route POST as the CLAUDE.md spec

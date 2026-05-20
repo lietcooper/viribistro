@@ -33,7 +33,7 @@ export const ModifyCartBodySchema = z
   });
 
 export const RemoveCartParamsSchema = z.object({
-  menuItemId: MenuItemId,
+  itemId: MenuItemId,
 });
 
 export const RemoveCartQuerySchema = z.object({

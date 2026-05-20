@@ -38,6 +38,14 @@ type DbCartItem = {
   menuItem: { name: string };
 };
 
+type CartLineMatch = {
+  id: string;
+  menuItemId: string;
+  quantity: number;
+  customizations: Prisma.JsonValue;
+  menuItem: { name: string };
+};
+
 export interface NormalizedCustomizationOption {
   optionId: string;
   optionName: string;
@@ -410,35 +418,72 @@ async function findExistingLine(
   cartId: string,
   itemIdOrCartItemId: string,
 ): Promise<{ id: string } | null> {
-  const byId = await prisma.cartItem.findFirst({
-    where: { cartId, id: itemIdOrCartItemId },
-    select: { id: true },
-  });
-  if (byId) return byId;
-
-  const byMenuItem = await prisma.cartItem.findMany({
-    where: { cartId, menuItemId: itemIdOrCartItemId },
-    select: { id: true },
-    take: 2,
-  });
-  if (byMenuItem.length > 1) {
-    throw new AppError(
-      409,
-      'AMBIGUOUS_CART_ITEM',
-      'Multiple cart lines match this menu item; use cartItemId instead',
-    );
-  }
-  return byMenuItem[0] ?? null;
+  const line = await resolveSingleLine(cartId, itemIdOrCartItemId);
+  return line ? { id: line.id } : null;
 }
 
 async function lineWhere(
   cartId: string,
   itemIdOrCartItemId: string,
 ): Promise<Prisma.CartItemWhereInput> {
+  const line = await resolveSingleLine(cartId, itemIdOrCartItemId);
+  return line ? { id: line.id } : { id: itemIdOrCartItemId };
+}
+
+async function resolveSingleLine(
+  cartId: string,
+  itemIdOrCartItemId: string,
+): Promise<CartLineMatch | null> {
+  const select = {
+    id: true,
+    menuItemId: true,
+    quantity: true,
+    customizations: true,
+    menuItem: { select: { name: true } },
+  } satisfies Prisma.CartItemSelect;
+
   const byId = await prisma.cartItem.findFirst({
     where: { cartId, id: itemIdOrCartItemId },
-    select: { id: true },
+    select,
   });
-  if (byId) return { id: byId.id };
-  return { cartId, menuItemId: itemIdOrCartItemId };
+  if (byId) return byId;
+
+  const matches = await prisma.cartItem.findMany({
+    where: { cartId, menuItemId: itemIdOrCartItemId },
+    select,
+    orderBy: { id: 'asc' },
+  });
+  if (matches.length > 1) {
+    throw ambiguousCartItem(matches);
+  }
+  return matches[0] ?? null;
+}
+
+function ambiguousCartItem(matches: CartLineMatch[]): AppError {
+  const itemName = matches[0]?.menuItem.name ?? 'this menu item';
+  const choices = matches.map((line) => ({
+    cartItemId: line.id,
+    menuItemId: line.menuItemId,
+    quantity: line.quantity,
+    customizations: customizationSummary(deserializeCustomizations(line.customizations)),
+  }));
+  const message =
+    `Multiple cart lines match ${itemName}; use cartItemId to choose one: ` +
+    choices
+      .map(
+        (choice) =>
+          `${choice.cartItemId} (${choice.quantity}x, ${choice.customizations})`,
+      )
+      .join('; ');
+  return new AppError(409, 'AMBIGUOUS_CART_ITEM', message, { itemName, choices });
+}
+
+function customizationSummary(customizations: NormalizedCustomization[]): string {
+  if (customizations.length === 0) return 'no customizations';
+  return customizations
+    .map(
+      (group) =>
+        `${group.groupName}: ${group.options.map((option) => option.optionName).join(', ')}`,
+    )
+    .join('; ');
 }

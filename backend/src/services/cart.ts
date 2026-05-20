@@ -470,10 +470,7 @@ function ambiguousCartItem(matches: CartLineMatch[]): AppError {
   const message =
     `Multiple cart lines match ${itemName}; use cartItemId to choose one: ` +
     choices
-      .map(
-        (choice) =>
-          `${choice.cartItemId} (${choice.quantity}x, ${choice.customizations})`,
-      )
+      .map((choice) => `${choice.cartItemId} (${choice.quantity}x, ${choice.customizations})`)
       .join('; ');
   return new AppError(409, 'AMBIGUOUS_CART_ITEM', message, { itemName, choices });
 }

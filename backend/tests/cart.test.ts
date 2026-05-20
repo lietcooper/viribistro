@@ -177,7 +177,9 @@ describe('Cart HTTP routes', () => {
       })
       .expect(200);
 
-    const res = await request(app).delete(`/api/cart/${burgerId}`).query({ sessionId: 'sess-1' });
+    const res = await request(app)
+      .delete(`/api/cart/${burgerId}`)
+      .query({ sessionId: 'sess-1' });
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('AMBIGUOUS_CART_ITEM');

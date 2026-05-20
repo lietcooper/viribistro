@@ -247,3 +247,126 @@ Add menu item customization so guests can choose options like toppings, sauces, 
   - [ ] `Add customization schema`
   - [ ] `Validate customized cart items`
   - [ ] `Add item customization controls`
+
+---
+
+# AI Customized Cart Removal Bug TODO
+
+## Goal
+
+Prevent the AI from removing multiple customized cart lines when the user asks to remove one item, for example two chicken sandwiches with different customizations. The agent must use cart line IDs when possible and ask for clarification when a shared `menuItemId` matches multiple customized lines.
+
+## Problem
+
+- Customized versions of the same menu item are separate cart lines.
+- Those cart lines share the same `menuItemId`.
+- The AI can still call `remove_from_cart` with the shared `menuItemId`.
+- If backend removal treats `menuItemId` as "remove all matching lines", both customized sandwiches can be deleted.
+
+## Decisions
+
+- Keep the existing cart architecture.
+- Use backend guardrails to prevent destructive ambiguous removal.
+- Prefer `cartItemId` for AI remove and modify tools.
+- Preserve legacy `menuItemId` behavior only when it matches exactly one cart line.
+- Return a recoverable tool error for ambiguous menu-item removal so the model can clarify.
+- Do not add structured clarification buttons yet.
+
+## 1. Backend Guardrails
+
+- [ ] Inspect `backend/src/services/cart.ts` removal behavior.
+- [ ] Confirm whether `removeItem(owner, menuItemId)` deletes multiple lines.
+- [ ] Update `removeItem()` so `menuItemId` removal:
+  - [ ] Removes the line when exactly one cart line matches.
+  - [ ] Returns `AMBIGUOUS_CART_ITEM` when multiple lines match.
+  - [ ] Includes enough context in the error message for the agent to ask a useful clarification.
+- [ ] Ensure `cartItemId` removal still removes exactly one line.
+- [ ] Keep `menuItemId` fallback for non-customized carts with one matching line.
+- [ ] Add or update service tests:
+  - [ ] Two customized lines with same `menuItemId` cannot be removed by `menuItemId`.
+  - [ ] One matching line can still be removed by `menuItemId`.
+  - [ ] A specific `cartItemId` removes only that one customized line.
+
+## 2. Cart API
+
+- [ ] Inspect `backend/src/routes/cart.ts` delete route.
+- [ ] Ensure frontend cart delete still sends/removes by cart line ID.
+- [ ] Add route test for `DELETE /api/cart/:id`:
+  - [ ] Ambiguous `menuItemId` returns `409 AMBIGUOUS_CART_ITEM`.
+  - [ ] Specific cart line ID removes one line.
+- [ ] Ensure error response is meaningful and not swallowed by middleware.
+
+## 3. AI Tool Contract
+
+- [ ] Update `remove_from_cart` tool schema to accept:
+  - [ ] `cartItemId` as preferred input.
+  - [ ] `itemId` only as a fallback.
+- [ ] Update `modify_item` tool schema to accept:
+  - [ ] `cartItemId` as preferred input.
+  - [ ] `itemId` only as a fallback.
+- [ ] Update tool descriptions:
+  - [ ] `remove_from_cart` removes an entire cart line.
+  - [ ] Use `cartItemId` when the cart has customized lines.
+  - [ ] Do not use `remove_from_cart` for "remove one" when quantity is greater than one.
+  - [ ] Use `modify_item` for quantity decreases.
+- [ ] Update dispatcher logic:
+  - [ ] Prefer `cartItemId` over `itemId`.
+  - [ ] Return recoverable tool errors for ambiguous fallback usage.
+
+## 4. Agent Prompt
+
+- [ ] Update `backend/src/services/agent/systemPrompt.ts`.
+- [ ] Add rules:
+  - [ ] Use `cartItemId` from the cart snapshot for remove/modify actions.
+  - [ ] If multiple cart lines match a user's item name, call `clarify`.
+  - [ ] Mention relevant customizations in the clarification question.
+  - [ ] Never remove multiple customized cart lines unless the user clearly asks to remove all.
+  - [ ] For "remove one" from a cart line with quantity greater than one, use `modify_item` with decremented quantity.
+- [ ] Ensure rendered cart block includes:
+  - [ ] `cartItemId`
+  - [ ] `menuItemId`
+  - [ ] item name
+  - [ ] quantity
+  - [ ] customization details
+
+## 5. Agent Tests
+
+- [ ] Add dispatcher test:
+  - [ ] `remove_from_cart` with ambiguous `itemId` returns recoverable `AMBIGUOUS_CART_ITEM`.
+  - [ ] `remove_from_cart` with `cartItemId` removes only that line.
+- [ ] Add loop test:
+  - [ ] User asks to remove one of multiple customized sandwiches.
+  - [ ] Model receives ambiguity error and responds with clarification.
+- [ ] Add system prompt test:
+  - [ ] Prompt includes the cart-line ID rule.
+  - [ ] Cart block displays customization details per line.
+- [ ] Add chat route test if needed:
+  - [ ] Ambiguous remove does not mutate the cart.
+
+## 6. Frontend Checks
+
+- [ ] Confirm `useCartStore.removeItem()` sends cart line ID for UI removals.
+- [ ] Confirm `CartDrawer` keys and quantity controls use cart line IDs.
+- [ ] Confirm no frontend code still removes customized items by shared `menuItemId`.
+- [ ] Add frontend test only if a gap is found.
+
+## 7. Verification
+
+- [ ] Run `cd backend && npm run lint`.
+- [ ] Run `cd backend && npm run build`.
+- [ ] Run `cd backend && npm run test`.
+- [ ] Run `cd frontend && npm run lint`.
+- [ ] Run `cd frontend && npm run typecheck`.
+- [ ] Run `cd frontend && npm test -- --runInBand`.
+- [ ] Manually test:
+  - [ ] Add two chicken sandwiches with different customizations.
+  - [ ] Ask AI: "remove one chicken sandwich".
+  - [ ] Confirm AI asks which customized sandwich to remove.
+  - [ ] Answer with one customization.
+  - [ ] Confirm only one cart line is removed.
+
+## 8. Commit
+
+- [ ] Commit after tests pass.
+- [ ] Use imperative commit message:
+  - [ ] `Clarify ambiguous customized cart removals`
